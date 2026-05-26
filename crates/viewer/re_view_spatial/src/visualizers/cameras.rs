@@ -3,7 +3,7 @@ use re_log_types::Instance;
 use re_renderer::renderer::LineStripFlags;
 use re_types::{
     archetypes::Pinhole,
-    components::{self, Color, Radius},
+    components::{self, Color, Colormap, Radius, Scalar, ValueRange},
     Archetype as _,
 };
 use re_view::latest_at_with_blueprint_resolved_data;
@@ -48,12 +48,16 @@ struct CameraComponentDataWithFallbacks {
     image_plane_distance: f32,
     color: Color,
     radius: Radius,
+    scalar: Option<Scalar>,
+    scalar_range: Option<ValueRange>,
+    colormap: Option<Colormap>,
 }
 
 impl CamerasVisualizer {
     #[allow(clippy::too_many_arguments)]
     fn visit_instance(
         &mut self,
+        ctx: &QueryContext<'_>,
         line_builder: &mut re_renderer::LineDrawableBuilder<'_>,
         transforms: &TransformTreeContext,
         data_result: &DataResult,
@@ -167,7 +171,7 @@ impl CamerasVisualizer {
         ];
 
         let radius = re_renderer::Size(*pinhole_properties.radius.0);
-        let color = pinhole_properties.color.into();
+        let color = self.process_camera_color(ctx, pinhole_properties);
         let instance_path_for_picking =
             re_entity_db::InstancePathHash::instance(ent_path, instance);
         let instance_layer_id =
@@ -203,6 +207,25 @@ impl CamerasVisualizer {
             std::iter::once(glam::Vec3::ZERO),
             world_from_camera,
         );
+    }
+
+    fn process_camera_color(
+        &self,
+        ctx: &QueryContext<'_>,
+        pinhole_properties: &CameraComponentDataWithFallbacks,
+    ) -> re_renderer::Color32 {
+        let Some(scalar) = pinhole_properties.scalar else {
+            return pinhole_properties.color.into();
+        };
+
+        let colormap = pinhole_properties.colormap.unwrap_or_else(|| {
+            <Self as TypedComponentFallbackProvider<Colormap>>::fallback_for(self, ctx)
+        });
+        let scalar_range = pinhole_properties.scalar_range.unwrap_or_else(|| {
+            <Self as TypedComponentFallbackProvider<ValueRange>>::fallback_for(self, ctx)
+        });
+
+        colormap_scalar_value(scalar.0 .0, scalar_range.0 .0, colormap)
     }
 }
 
@@ -273,6 +296,9 @@ impl VisualizerSystem for CamerasVisualizer {
             let radius = query_results
                 .get_mono::<Radius>()
                 .unwrap_or_else(|| self.fallback_for(&query_ctx));
+            let scalar = query_results.get_mono::<Scalar>();
+            let scalar_range = query_results.get_mono::<ValueRange>();
+            let colormap = query_results.get_mono::<Colormap>();
 
             let component_data = CameraComponentDataWithFallbacks {
                 pinhole: crate::Pinhole {
@@ -283,6 +309,9 @@ impl VisualizerSystem for CamerasVisualizer {
                 image_plane_distance: image_plane_distance.into(),
                 color,
                 radius,
+                scalar,
+                scalar_range,
+                colormap,
             };
 
             let entity_highlight = query
@@ -290,6 +319,7 @@ impl VisualizerSystem for CamerasVisualizer {
                 .entity_outline_mask(data_result.entity_path.hash());
 
             self.visit_instance(
+                &query_ctx,
                 &mut line_builder,
                 transforms,
                 data_result,
@@ -365,10 +395,42 @@ impl TypedComponentFallbackProvider<Radius> for CamerasVisualizer {
     }
 }
 
+impl TypedComponentFallbackProvider<ValueRange> for CamerasVisualizer {
+    fn fallback_for(&self, _ctx: &QueryContext<'_>) -> ValueRange {
+        ValueRange::default()
+    }
+}
+
+impl TypedComponentFallbackProvider<Colormap> for CamerasVisualizer {
+    fn fallback_for(&self, _ctx: &QueryContext<'_>) -> Colormap {
+        Colormap::RedToGreen
+    }
+}
+
 re_viewer_context::impl_component_fallback_provider!(CamerasVisualizer => [
     components::ImagePlaneDistance,
     components::ViewCoordinates,
     components::Resolution,
     Color,
-    Radius
+    Radius,
+    ValueRange,
+    Colormap
 ]);
+
+fn colormap_scalar_value(
+    scalar_value: f64,
+    scalar_range: [f64; 2],
+    colormap: Colormap,
+) -> re_renderer::Color32 {
+    let [range_min, range_max] = scalar_range;
+    let range_width = range_max - range_min;
+    let colormap = re_viewer_context::gpu_bridge::colormap_to_re_renderer(colormap);
+
+    let t = if range_width.is_finite() && range_width > 0.0 && scalar_value.is_finite() {
+        ((scalar_value - range_min) / range_width).clamp(0.0, 1.0) as f32
+    } else {
+        0.0
+    };
+    let [r, g, b, a] = re_renderer::colormap_srgb(colormap, t);
+    re_renderer::Color32::from_rgba_unmultiplied(r, g, b, a)
+}

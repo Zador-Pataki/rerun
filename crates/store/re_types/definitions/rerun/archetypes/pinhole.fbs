@@ -75,4 +75,18 @@ table Pinhole (
   ///
   /// This is only used for visualization purposes, and does not affect the projection itself.
   radius: rerun.components.Radius ("attr.rerun.component_optional", nullable, order: 4200);
+
+  /// Optional scalar value used to color the camera frustum in 3D views.
+  ///
+  /// If present, the spatial viewer maps this value to a color using `scalar_range` and `colormap`.
+  /// This takes precedence over `color`.
+  scalar: rerun.components.Scalar ("attr.rerun.component_optional", nullable, order: 4300);
+
+  /// Optional scalar value range used for colormapping `scalar`.
+  ///
+  /// Values outside this range are clamped to the nearest end of the colormap.
+  scalar_range: rerun.components.ValueRange ("attr.rerun.component_optional", nullable, order: 4310);
+
+  /// Optional colormap used for scalar-colored camera frustums.
+  colormap: rerun.components.Colormap ("attr.rerun.component_optional", nullable, order: 4320);
 }

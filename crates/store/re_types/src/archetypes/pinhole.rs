@@ -148,6 +148,20 @@ pub struct Pinhole {
     ///
     /// This is only used for visualization purposes, and does not affect the projection itself.
     pub radius: Option<SerializedComponentBatch>,
+
+    /// Optional scalar value used to color the camera frustum in 3D views.
+    ///
+    /// If present, the spatial viewer maps this value to a color using `scalar_range` and `colormap`.
+    /// This takes precedence over `color`.
+    pub scalar: Option<SerializedComponentBatch>,
+
+    /// Optional scalar value range used for colormapping `scalar`.
+    ///
+    /// Values outside this range are clamped to the nearest end of the colormap.
+    pub scalar_range: Option<SerializedComponentBatch>,
+
+    /// Optional colormap used for scalar-colored camera frustums.
+    pub colormap: Option<SerializedComponentBatch>,
 }
 
 impl Pinhole {
@@ -211,6 +225,36 @@ impl Pinhole {
         }
     }
 
+    /// Returns the [`ComponentDescriptor`] for [`Self::scalar`].
+    #[inline]
+    pub fn descriptor_scalar() -> ComponentDescriptor {
+        ComponentDescriptor {
+            archetype_name: Some("rerun.archetypes.Pinhole".into()),
+            component_name: "rerun.components.Scalar".into(),
+            archetype_field_name: Some("scalar".into()),
+        }
+    }
+
+    /// Returns the [`ComponentDescriptor`] for [`Self::scalar_range`].
+    #[inline]
+    pub fn descriptor_scalar_range() -> ComponentDescriptor {
+        ComponentDescriptor {
+            archetype_name: Some("rerun.archetypes.Pinhole".into()),
+            component_name: "rerun.components.ValueRange".into(),
+            archetype_field_name: Some("scalar_range".into()),
+        }
+    }
+
+    /// Returns the [`ComponentDescriptor`] for [`Self::colormap`].
+    #[inline]
+    pub fn descriptor_colormap() -> ComponentDescriptor {
+        ComponentDescriptor {
+            archetype_name: Some("rerun.archetypes.Pinhole".into()),
+            component_name: "rerun.components.Colormap".into(),
+            archetype_field_name: Some("colormap".into()),
+        }
+    }
+
     /// Returns the [`ComponentDescriptor`] for the associated indicator component.
     #[inline]
     pub fn descriptor_indicator() -> ComponentDescriptor {
@@ -233,17 +277,20 @@ static RECOMMENDED_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 2usiz
         ]
     });
 
-static OPTIONAL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 4usize]> =
+static OPTIONAL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 7usize]> =
     once_cell::sync::Lazy::new(|| {
         [
             Pinhole::descriptor_camera_xyz(),
             Pinhole::descriptor_image_plane_distance(),
             Pinhole::descriptor_color(),
             Pinhole::descriptor_radius(),
+            Pinhole::descriptor_scalar(),
+            Pinhole::descriptor_scalar_range(),
+            Pinhole::descriptor_colormap(),
         ]
     });
 
-static ALL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 7usize]> =
+static ALL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 10usize]> =
     once_cell::sync::Lazy::new(|| {
         [
             Pinhole::descriptor_image_from_camera(),
@@ -253,12 +300,15 @@ static ALL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 7usize]> =
             Pinhole::descriptor_image_plane_distance(),
             Pinhole::descriptor_color(),
             Pinhole::descriptor_radius(),
+            Pinhole::descriptor_scalar(),
+            Pinhole::descriptor_scalar_range(),
+            Pinhole::descriptor_colormap(),
         ]
     });
 
 impl Pinhole {
-    /// The total number of components in the archetype: 1 required, 2 recommended, 4 optional
-    pub const NUM_COMPONENTS: usize = 7usize;
+    /// The total number of components in the archetype: 1 required, 2 recommended, 7 optional
+    pub const NUM_COMPONENTS: usize = 10usize;
 }
 
 /// Indicator component for the [`Pinhole`] [`::re_types_core::Archetype`]
@@ -339,6 +389,17 @@ impl ::re_types_core::Archetype for Pinhole {
         let radius = arrays_by_descr
             .get(&Self::descriptor_radius())
             .map(|array| SerializedComponentBatch::new(array.clone(), Self::descriptor_radius()));
+        let scalar = arrays_by_descr
+            .get(&Self::descriptor_scalar())
+            .map(|array| SerializedComponentBatch::new(array.clone(), Self::descriptor_scalar()));
+        let scalar_range = arrays_by_descr
+            .get(&Self::descriptor_scalar_range())
+            .map(|array| {
+                SerializedComponentBatch::new(array.clone(), Self::descriptor_scalar_range())
+            });
+        let colormap = arrays_by_descr
+            .get(&Self::descriptor_colormap())
+            .map(|array| SerializedComponentBatch::new(array.clone(), Self::descriptor_colormap()));
         Ok(Self {
             image_from_camera,
             resolution,
@@ -346,6 +407,9 @@ impl ::re_types_core::Archetype for Pinhole {
             image_plane_distance,
             color,
             radius,
+            scalar,
+            scalar_range,
+            colormap,
         })
     }
 }
@@ -362,6 +426,9 @@ impl ::re_types_core::AsComponents for Pinhole {
             self.image_plane_distance.clone(),
             self.color.clone(),
             self.radius.clone(),
+            self.scalar.clone(),
+            self.scalar_range.clone(),
+            self.colormap.clone(),
         ]
         .into_iter()
         .flatten()
@@ -385,6 +452,9 @@ impl Pinhole {
             image_plane_distance: None,
             color: None,
             radius: None,
+            scalar: None,
+            scalar_range: None,
+            colormap: None,
         }
     }
 
@@ -422,6 +492,18 @@ impl Pinhole {
             radius: Some(SerializedComponentBatch::new(
                 crate::components::Radius::arrow_empty(),
                 Self::descriptor_radius(),
+            )),
+            scalar: Some(SerializedComponentBatch::new(
+                crate::components::Scalar::arrow_empty(),
+                Self::descriptor_scalar(),
+            )),
+            scalar_range: Some(SerializedComponentBatch::new(
+                crate::components::ValueRange::arrow_empty(),
+                Self::descriptor_scalar_range(),
+            )),
+            colormap: Some(SerializedComponentBatch::new(
+                crate::components::Colormap::arrow_empty(),
+                Self::descriptor_colormap(),
             )),
         }
     }
@@ -463,6 +545,15 @@ impl Pinhole {
             self.radius
                 .map(|radius| radius.partitioned(_lengths.clone()))
                 .transpose()?,
+            self.scalar
+                .map(|scalar| scalar.partitioned(_lengths.clone()))
+                .transpose()?,
+            self.scalar_range
+                .map(|scalar_range| scalar_range.partitioned(_lengths.clone()))
+                .transpose()?,
+            self.colormap
+                .map(|colormap| colormap.partitioned(_lengths.clone()))
+                .transpose()?,
         ];
         Ok(columns
             .into_iter()
@@ -486,6 +577,9 @@ impl Pinhole {
         let len_image_plane_distance = self.image_plane_distance.as_ref().map(|b| b.array.len());
         let len_color = self.color.as_ref().map(|b| b.array.len());
         let len_radius = self.radius.as_ref().map(|b| b.array.len());
+        let len_scalar = self.scalar.as_ref().map(|b| b.array.len());
+        let len_scalar_range = self.scalar_range.as_ref().map(|b| b.array.len());
+        let len_colormap = self.colormap.as_ref().map(|b| b.array.len());
         let len = None
             .or(len_image_from_camera)
             .or(len_resolution)
@@ -493,6 +587,9 @@ impl Pinhole {
             .or(len_image_plane_distance)
             .or(len_color)
             .or(len_radius)
+            .or(len_scalar)
+            .or(len_scalar_range)
+            .or(len_colormap)
             .unwrap_or(0);
         self.columns(std::iter::repeat(1).take(len))
     }
@@ -672,6 +769,74 @@ impl Pinhole {
         self.radius = try_serialize_field(Self::descriptor_radius(), radius);
         self
     }
+
+    /// Optional scalar value used to color the camera frustum in 3D views.
+    ///
+    /// If present, the spatial viewer maps this value to a color using `scalar_range` and `colormap`.
+    /// This takes precedence over `color`.
+    #[inline]
+    pub fn with_scalar(mut self, scalar: impl Into<crate::components::Scalar>) -> Self {
+        self.scalar = try_serialize_field(Self::descriptor_scalar(), [scalar]);
+        self
+    }
+
+    /// This method makes it possible to pack multiple [`crate::components::Scalar`] in a single component batch.
+    ///
+    /// This only makes sense when used in conjunction with [`Self::columns`]. [`Self::with_scalar`] should
+    /// be used when logging a single row's worth of data.
+    #[inline]
+    pub fn with_many_scalar(
+        mut self,
+        scalar: impl IntoIterator<Item = impl Into<crate::components::Scalar>>,
+    ) -> Self {
+        self.scalar = try_serialize_field(Self::descriptor_scalar(), scalar);
+        self
+    }
+
+    /// Optional scalar value range used for colormapping `scalar`.
+    ///
+    /// Values outside this range are clamped to the nearest end of the colormap.
+    #[inline]
+    pub fn with_scalar_range(
+        mut self,
+        scalar_range: impl Into<crate::components::ValueRange>,
+    ) -> Self {
+        self.scalar_range = try_serialize_field(Self::descriptor_scalar_range(), [scalar_range]);
+        self
+    }
+
+    /// This method makes it possible to pack multiple [`crate::components::ValueRange`] in a single component batch.
+    ///
+    /// This only makes sense when used in conjunction with [`Self::columns`]. [`Self::with_scalar_range`] should
+    /// be used when logging a single row's worth of data.
+    #[inline]
+    pub fn with_many_scalar_range(
+        mut self,
+        scalar_range: impl IntoIterator<Item = impl Into<crate::components::ValueRange>>,
+    ) -> Self {
+        self.scalar_range = try_serialize_field(Self::descriptor_scalar_range(), scalar_range);
+        self
+    }
+
+    /// Optional colormap used for scalar-colored camera frustums.
+    #[inline]
+    pub fn with_colormap(mut self, colormap: impl Into<crate::components::Colormap>) -> Self {
+        self.colormap = try_serialize_field(Self::descriptor_colormap(), [colormap]);
+        self
+    }
+
+    /// This method makes it possible to pack multiple [`crate::components::Colormap`] in a single component batch.
+    ///
+    /// This only makes sense when used in conjunction with [`Self::columns`]. [`Self::with_colormap`] should
+    /// be used when logging a single row's worth of data.
+    #[inline]
+    pub fn with_many_colormap(
+        mut self,
+        colormap: impl IntoIterator<Item = impl Into<crate::components::Colormap>>,
+    ) -> Self {
+        self.colormap = try_serialize_field(Self::descriptor_colormap(), colormap);
+        self
+    }
 }
 
 impl ::re_byte_size::SizeBytes for Pinhole {
@@ -683,5 +848,8 @@ impl ::re_byte_size::SizeBytes for Pinhole {
             + self.image_plane_distance.heap_size_bytes()
             + self.color.heap_size_bytes()
             + self.radius.heap_size_bytes()
+            + self.scalar.heap_size_bytes()
+            + self.scalar_range.heap_size_bytes()
+            + self.colormap.heap_size_bytes()
     }
 }

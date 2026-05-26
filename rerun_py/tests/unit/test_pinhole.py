@@ -44,5 +44,19 @@ def test_pinhole() -> None:
         )
 
 
+def test_pinhole_scalar_colormap() -> None:
+    arch = rr.Pinhole(
+        image_from_camera=[[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+        resolution=[1, 1],
+        scalar=0.5,
+        scalar_range=[0.0, 1.0],
+        colormap="redtogreen",
+    )
+
+    assert arch.scalar == rr.components.ScalarBatch(0.5)
+    assert arch.scalar_range == rr.components.ValueRangeBatch([0.0, 1.0])
+    assert arch.colormap == rr.components.ColormapBatch([rr.components.Colormap.RedToGreen])
+
+
 if __name__ == "__main__":
     test_pinhole()

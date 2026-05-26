@@ -87,6 +87,9 @@ class Pinhole(PinholeExt, Archetype):
             image_plane_distance=None,
             color=None,
             radius=None,
+            scalar=None,
+            scalar_range=None,
+            colormap=None,
         )
 
     @classmethod
@@ -107,6 +110,9 @@ class Pinhole(PinholeExt, Archetype):
         image_plane_distance: datatypes.Float32Like | None = None,
         color: datatypes.Rgba32Like | None = None,
         radius: datatypes.Float32Like | None = None,
+        scalar: datatypes.Float64Like | None = None,
+        scalar_range: datatypes.Range1DLike | None = None,
+        colormap: components.ColormapLike | None = None,
     ) -> Pinhole:
         """
         Update only some specific fields of a `Pinhole`.
@@ -166,6 +172,17 @@ class Pinhole(PinholeExt, Archetype):
             Radius used to draw the camera frustum lines in 3D views.
 
             This is only used for visualization purposes, and does not affect the projection itself.
+        scalar:
+            Optional scalar value used to color the camera frustum in 3D views.
+
+            If present, the spatial viewer maps this value to a color using `scalar_range` and `colormap`.
+            This takes precedence over `color`.
+        scalar_range:
+            Optional scalar value range used for colormapping `scalar`.
+
+            Values outside this range are clamped to the nearest end of the colormap.
+        colormap:
+            Optional colormap used for scalar-colored camera frustums.
 
         """
 
@@ -178,6 +195,9 @@ class Pinhole(PinholeExt, Archetype):
                 "image_plane_distance": image_plane_distance,
                 "color": color,
                 "radius": radius,
+                "scalar": scalar,
+                "scalar_range": scalar_range,
+                "colormap": colormap,
             }
 
             if clear_unset:
@@ -204,6 +224,9 @@ class Pinhole(PinholeExt, Archetype):
         image_plane_distance: datatypes.Float32ArrayLike | None = None,
         color: datatypes.Rgba32ArrayLike | None = None,
         radius: datatypes.Float32ArrayLike | None = None,
+        scalar: datatypes.Float64ArrayLike | None = None,
+        scalar_range: datatypes.Range1DArrayLike | None = None,
+        colormap: components.ColormapArrayLike | None = None,
     ) -> ComponentColumnList:
         """
         Construct a new column-oriented component bundle.
@@ -266,6 +289,17 @@ class Pinhole(PinholeExt, Archetype):
             Radius used to draw the camera frustum lines in 3D views.
 
             This is only used for visualization purposes, and does not affect the projection itself.
+        scalar:
+            Optional scalar value used to color the camera frustum in 3D views.
+
+            If present, the spatial viewer maps this value to a color using `scalar_range` and `colormap`.
+            This takes precedence over `color`.
+        scalar_range:
+            Optional scalar value range used for colormapping `scalar`.
+
+            Values outside this range are clamped to the nearest end of the colormap.
+        colormap:
+            Optional colormap used for scalar-colored camera frustums.
 
         """
 
@@ -278,6 +312,9 @@ class Pinhole(PinholeExt, Archetype):
                 image_plane_distance=image_plane_distance,
                 color=color,
                 radius=radius,
+                scalar=scalar,
+                scalar_range=scalar_range,
+                colormap=colormap,
             )
 
         batches = inst.as_component_batches(include_indicators=False)
@@ -291,6 +328,9 @@ class Pinhole(PinholeExt, Archetype):
             "image_plane_distance": image_plane_distance,
             "color": color,
             "radius": radius,
+            "scalar": scalar,
+            "scalar_range": scalar_range,
+            "colormap": colormap,
         }
         columns = []
 
@@ -412,6 +452,38 @@ class Pinhole(PinholeExt, Archetype):
     # Radius used to draw the camera frustum lines in 3D views.
     #
     # This is only used for visualization purposes, and does not affect the projection itself.
+    #
+    # (Docstring intentionally commented out to hide this field from the docs)
+
+    scalar: components.ScalarBatch | None = field(
+        metadata={"component": True},
+        default=None,
+        converter=components.ScalarBatch._converter,  # type: ignore[misc]
+    )
+    # Optional scalar value used to color the camera frustum in 3D views.
+    #
+    # If present, the spatial viewer maps this value to a color using `scalar_range` and `colormap`.
+    # This takes precedence over `color`.
+    #
+    # (Docstring intentionally commented out to hide this field from the docs)
+
+    scalar_range: components.ValueRangeBatch | None = field(
+        metadata={"component": True},
+        default=None,
+        converter=components.ValueRangeBatch._converter,  # type: ignore[misc]
+    )
+    # Optional scalar value range used for colormapping `scalar`.
+    #
+    # Values outside this range are clamped to the nearest end of the colormap.
+    #
+    # (Docstring intentionally commented out to hide this field from the docs)
+
+    colormap: components.ColormapBatch | None = field(
+        metadata={"component": True},
+        default=None,
+        converter=components.ColormapBatch._converter,  # type: ignore[misc]
+    )
+    # Optional colormap used for scalar-colored camera frustums.
     #
     # (Docstring intentionally commented out to hide this field from the docs)
 

@@ -7,7 +7,9 @@ use re_log_types::hash::Hash64;
 use re_log_types::{ComponentPath, EntityPath};
 use re_types::blueprint::archetypes::VisualizerOverrides;
 use re_types::{
-    components::{Color, Colormap, PinholeProjection, Radius, Scalar, ValueRange},
+    components::{
+        Color, Colormap, ImagePlaneDistance, PinholeProjection, Radius, Scalar, ValueRange,
+    },
     Component as _,
 };
 use re_types_core::{external::arrow::array::ArrayRef, Loggable as _};
@@ -234,6 +236,7 @@ fn visualizer_components(
         && query_info.queried.contains(&Colormap::name());
     let has_camera_pyramid_style_controls =
         query_info.required.contains(&PinholeProjection::name())
+            && query_info.queried.contains(&ImagePlaneDistance::name())
             && query_info.queried.contains(&Color::name())
             && query_info.queried.contains(&Radius::name());
 
@@ -474,6 +477,7 @@ fn visualizer_components(
                 true,
                 list_item::LabelContent::new("Camera pyramid style").min_desired_width(150.0),
                 |ui| {
+                    camera_style_component_ui(ui, "Size", ImagePlaneDistance::name());
                     camera_style_component_ui(ui, "Color", Color::name());
                     camera_style_component_ui(ui, "Radius", Radius::name());
                 },
@@ -493,7 +497,9 @@ fn visualizer_components(
             continue;
         }
         if has_camera_pyramid_style_controls
-            && (component_name == Color::name() || component_name == Radius::name())
+            && (component_name == ImagePlaneDistance::name()
+                || component_name == Color::name()
+                || component_name == Radius::name())
         {
             continue;
         }

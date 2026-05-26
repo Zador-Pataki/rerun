@@ -23,13 +23,25 @@ fn roundtrip() {
         radius: components::Radius::from(42.0)
             .serialized()
             .map(|batch| batch.with_descriptor_override(Pinhole::descriptor_radius())),
+        scalar: components::Scalar(0.5.into())
+            .serialized()
+            .map(|batch| batch.with_descriptor_override(Pinhole::descriptor_scalar())),
+        scalar_range: components::ValueRange::new(0.0, 1.0)
+            .serialized()
+            .map(|batch| batch.with_descriptor_override(Pinhole::descriptor_scalar_range())),
+        colormap: components::Colormap::RedToGreen
+            .serialized()
+            .map(|batch| batch.with_descriptor_override(Pinhole::descriptor_colormap())),
     };
 
     let arch = Pinhole::new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
         .with_resolution([1.0, 2.0])
         .with_camera_xyz(components::ViewCoordinates::RDF)
         .with_color(0xAA0000CC)
-        .with_radius(42.0);
+        .with_radius(42.0)
+        .with_scalar(0.5)
+        .with_scalar_range(components::ValueRange::new(0.0, 1.0))
+        .with_colormap(components::Colormap::RedToGreen);
     similar_asserts::assert_eq!(expected, arch);
 
     eprintln!("arch = {arch:#?}");

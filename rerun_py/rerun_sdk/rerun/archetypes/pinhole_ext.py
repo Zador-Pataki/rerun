@@ -5,7 +5,7 @@ from typing import Any, cast
 
 import numpy.typing as npt
 
-from .. import datatypes
+from .. import components, datatypes
 from ..datatypes import Mat3x3Like, Vec2D, Vec2DLike, ViewCoordinatesLike
 from ..error_utils import _send_warning_or_raise, catch_and_log_exceptions
 
@@ -28,6 +28,9 @@ class PinholeExt:
         image_plane_distance: float | None = None,
         color: datatypes.Rgba32Like | None = None,
         radius: datatypes.Float32Like | None = None,
+        scalar: datatypes.Float64Like | None = None,
+        scalar_range: datatypes.Range1DLike | None = None,
+        colormap: components.ColormapLike | None = None,
     ) -> None:
         """
         Create a new instance of the Pinhole archetype.
@@ -96,6 +99,15 @@ class PinholeExt:
         radius:
             Radius used to draw the camera frustum lines in 3D views.
             This is only used for visualization purposes, and does not affect the projection itself.
+        scalar:
+            Optional scalar value used to color the camera frustum in 3D views.
+            If present, the spatial viewer maps this value to a color using `scalar_range` and `colormap`.
+            This takes precedence over `color`.
+        scalar_range:
+            Optional scalar value range used for colormapping `scalar`.
+            Values outside this range are clamped to the nearest end of the colormap.
+        colormap:
+            Optional colormap used for scalar-colored camera frustums.
 
         """
 
@@ -166,6 +178,9 @@ class PinholeExt:
                 image_plane_distance=image_plane_distance,
                 color=color,
                 radius=radius,
+                scalar=scalar,
+                scalar_range=scalar_range,
+                colormap=colormap,
             )
             return
 
