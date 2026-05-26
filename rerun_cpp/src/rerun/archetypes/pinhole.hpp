@@ -6,8 +6,10 @@
 #include "../collection.hpp"
 #include "../component_batch.hpp"
 #include "../component_column.hpp"
+#include "../components/color.hpp"
 #include "../components/image_plane_distance.hpp"
 #include "../components/pinhole_projection.hpp"
+#include "../components/radius.hpp"
 #include "../components/resolution.hpp"
 #include "../components/view_coordinates.hpp"
 #include "../indicator_component.hpp"
@@ -127,6 +129,16 @@ namespace rerun::archetypes {
         /// This is only used for visualization purposes, and does not affect the projection itself.
         std::optional<ComponentBatch> image_plane_distance;
 
+        /// Color used to draw the camera frustum in 3D views.
+        ///
+        /// This is only used for visualization purposes, and does not affect the projection itself.
+        std::optional<ComponentBatch> color;
+
+        /// Radius used to draw the camera frustum lines in 3D views.
+        ///
+        /// This is only used for visualization purposes, and does not affect the projection itself.
+        std::optional<ComponentBatch> radius;
+
       public:
         static constexpr const char IndicatorComponentName[] = "rerun.components.PinholeIndicator";
 
@@ -154,6 +166,14 @@ namespace rerun::archetypes {
         static constexpr auto Descriptor_image_plane_distance = ComponentDescriptor(
             ArchetypeName, "image_plane_distance",
             Loggable<rerun::components::ImagePlaneDistance>::Descriptor.component_name
+        );
+        /// `ComponentDescriptor` for the `color` field.
+        static constexpr auto Descriptor_color = ComponentDescriptor(
+            ArchetypeName, "color", Loggable<rerun::components::Color>::Descriptor.component_name
+        );
+        /// `ComponentDescriptor` for the `radius` field.
+        static constexpr auto Descriptor_radius = ComponentDescriptor(
+            ArchetypeName, "radius", Loggable<rerun::components::Radius>::Descriptor.component_name
         );
 
       public: // START of extensions from pinhole_ext.cpp:
@@ -349,6 +369,40 @@ namespace rerun::archetypes {
                                        Descriptor_image_plane_distance
             )
                                        .value_or_throw();
+            return std::move(*this);
+        }
+
+        /// Color used to draw the camera frustum in 3D views.
+        ///
+        /// This is only used for visualization purposes, and does not affect the projection itself.
+        Pinhole with_color(const rerun::components::Color& _color) && {
+            color = ComponentBatch::from_loggable(_color, Descriptor_color).value_or_throw();
+            return std::move(*this);
+        }
+
+        /// This method makes it possible to pack multiple `color` in a single component batch.
+        ///
+        /// This only makes sense when used in conjunction with `columns`. `with_color` should
+        /// be used when logging a single row's worth of data.
+        Pinhole with_many_color(const Collection<rerun::components::Color>& _color) && {
+            color = ComponentBatch::from_loggable(_color, Descriptor_color).value_or_throw();
+            return std::move(*this);
+        }
+
+        /// Radius used to draw the camera frustum lines in 3D views.
+        ///
+        /// This is only used for visualization purposes, and does not affect the projection itself.
+        Pinhole with_radius(const rerun::components::Radius& _radius) && {
+            radius = ComponentBatch::from_loggable(_radius, Descriptor_radius).value_or_throw();
+            return std::move(*this);
+        }
+
+        /// This method makes it possible to pack multiple `radius` in a single component batch.
+        ///
+        /// This only makes sense when used in conjunction with `columns`. `with_radius` should
+        /// be used when logging a single row's worth of data.
+        Pinhole with_many_radius(const Collection<rerun::components::Radius>& _radius) && {
+            radius = ComponentBatch::from_loggable(_radius, Descriptor_radius).value_or_throw();
             return std::move(*this);
         }
 

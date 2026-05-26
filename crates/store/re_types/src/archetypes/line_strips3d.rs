@@ -122,6 +122,19 @@ pub struct LineStrips3D {
     ///
     /// The [`components::ClassId`][crate::components::ClassId] provides colors and labels if not specified explicitly.
     pub class_ids: Option<SerializedComponentBatch>,
+
+    /// Optional scalar values for the line strips.
+    ///
+    /// If present, the spatial viewer maps these values to colors using `scalar_range` and `colormap`.
+    pub scalar_values: Option<SerializedComponentBatch>,
+
+    /// Optional scalar value range used for colormapping `scalar_values`.
+    ///
+    /// Values outside this range are clamped to the nearest end of the colormap.
+    pub scalar_range: Option<SerializedComponentBatch>,
+
+    /// Optional colormap used for scalar-colored line strips.
+    pub colormap: Option<SerializedComponentBatch>,
 }
 
 impl LineStrips3D {
@@ -185,6 +198,36 @@ impl LineStrips3D {
         }
     }
 
+    /// Returns the [`ComponentDescriptor`] for [`Self::scalar_values`].
+    #[inline]
+    pub fn descriptor_scalar_values() -> ComponentDescriptor {
+        ComponentDescriptor {
+            archetype_name: Some("rerun.archetypes.LineStrips3D".into()),
+            component_name: "rerun.components.Scalar".into(),
+            archetype_field_name: Some("scalar_values".into()),
+        }
+    }
+
+    /// Returns the [`ComponentDescriptor`] for [`Self::scalar_range`].
+    #[inline]
+    pub fn descriptor_scalar_range() -> ComponentDescriptor {
+        ComponentDescriptor {
+            archetype_name: Some("rerun.archetypes.LineStrips3D".into()),
+            component_name: "rerun.components.ValueRange".into(),
+            archetype_field_name: Some("scalar_range".into()),
+        }
+    }
+
+    /// Returns the [`ComponentDescriptor`] for [`Self::colormap`].
+    #[inline]
+    pub fn descriptor_colormap() -> ComponentDescriptor {
+        ComponentDescriptor {
+            archetype_name: Some("rerun.archetypes.LineStrips3D".into()),
+            component_name: "rerun.components.Colormap".into(),
+            archetype_field_name: Some("colormap".into()),
+        }
+    }
+
     /// Returns the [`ComponentDescriptor`] for the associated indicator component.
     #[inline]
     pub fn descriptor_indicator() -> ComponentDescriptor {
@@ -208,16 +251,19 @@ static RECOMMENDED_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 3usiz
         ]
     });
 
-static OPTIONAL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 3usize]> =
+static OPTIONAL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 6usize]> =
     once_cell::sync::Lazy::new(|| {
         [
             LineStrips3D::descriptor_labels(),
             LineStrips3D::descriptor_show_labels(),
             LineStrips3D::descriptor_class_ids(),
+            LineStrips3D::descriptor_scalar_values(),
+            LineStrips3D::descriptor_scalar_range(),
+            LineStrips3D::descriptor_colormap(),
         ]
     });
 
-static ALL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 7usize]> =
+static ALL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 10usize]> =
     once_cell::sync::Lazy::new(|| {
         [
             LineStrips3D::descriptor_strips(),
@@ -227,12 +273,15 @@ static ALL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 7usize]> =
             LineStrips3D::descriptor_labels(),
             LineStrips3D::descriptor_show_labels(),
             LineStrips3D::descriptor_class_ids(),
+            LineStrips3D::descriptor_scalar_values(),
+            LineStrips3D::descriptor_scalar_range(),
+            LineStrips3D::descriptor_colormap(),
         ]
     });
 
 impl LineStrips3D {
-    /// The total number of components in the archetype: 1 required, 3 recommended, 3 optional
-    pub const NUM_COMPONENTS: usize = 7usize;
+    /// The total number of components in the archetype: 1 required, 3 recommended, 6 optional
+    pub const NUM_COMPONENTS: usize = 10usize;
 }
 
 /// Indicator component for the [`LineStrips3D`] [`::re_types_core::Archetype`]
@@ -306,6 +355,19 @@ impl ::re_types_core::Archetype for LineStrips3D {
             .map(|array| {
                 SerializedComponentBatch::new(array.clone(), Self::descriptor_class_ids())
             });
+        let scalar_values = arrays_by_descr
+            .get(&Self::descriptor_scalar_values())
+            .map(|array| {
+                SerializedComponentBatch::new(array.clone(), Self::descriptor_scalar_values())
+            });
+        let scalar_range = arrays_by_descr
+            .get(&Self::descriptor_scalar_range())
+            .map(|array| {
+                SerializedComponentBatch::new(array.clone(), Self::descriptor_scalar_range())
+            });
+        let colormap = arrays_by_descr
+            .get(&Self::descriptor_colormap())
+            .map(|array| SerializedComponentBatch::new(array.clone(), Self::descriptor_colormap()));
         Ok(Self {
             strips,
             radii,
@@ -313,6 +375,9 @@ impl ::re_types_core::Archetype for LineStrips3D {
             labels,
             show_labels,
             class_ids,
+            scalar_values,
+            scalar_range,
+            colormap,
         })
     }
 }
@@ -329,6 +394,9 @@ impl ::re_types_core::AsComponents for LineStrips3D {
             self.labels.clone(),
             self.show_labels.clone(),
             self.class_ids.clone(),
+            self.scalar_values.clone(),
+            self.scalar_range.clone(),
+            self.colormap.clone(),
         ]
         .into_iter()
         .flatten()
@@ -351,6 +419,9 @@ impl LineStrips3D {
             labels: None,
             show_labels: None,
             class_ids: None,
+            scalar_values: None,
+            scalar_range: None,
+            colormap: None,
         }
     }
 
@@ -388,6 +459,18 @@ impl LineStrips3D {
             class_ids: Some(SerializedComponentBatch::new(
                 crate::components::ClassId::arrow_empty(),
                 Self::descriptor_class_ids(),
+            )),
+            scalar_values: Some(SerializedComponentBatch::new(
+                crate::components::Scalar::arrow_empty(),
+                Self::descriptor_scalar_values(),
+            )),
+            scalar_range: Some(SerializedComponentBatch::new(
+                crate::components::ValueRange::arrow_empty(),
+                Self::descriptor_scalar_range(),
+            )),
+            colormap: Some(SerializedComponentBatch::new(
+                crate::components::Colormap::arrow_empty(),
+                Self::descriptor_colormap(),
             )),
         }
     }
@@ -429,6 +512,15 @@ impl LineStrips3D {
             self.class_ids
                 .map(|class_ids| class_ids.partitioned(_lengths.clone()))
                 .transpose()?,
+            self.scalar_values
+                .map(|scalar_values| scalar_values.partitioned(_lengths.clone()))
+                .transpose()?,
+            self.scalar_range
+                .map(|scalar_range| scalar_range.partitioned(_lengths.clone()))
+                .transpose()?,
+            self.colormap
+                .map(|colormap| colormap.partitioned(_lengths.clone()))
+                .transpose()?,
         ];
         Ok(columns
             .into_iter()
@@ -452,6 +544,9 @@ impl LineStrips3D {
         let len_labels = self.labels.as_ref().map(|b| b.array.len());
         let len_show_labels = self.show_labels.as_ref().map(|b| b.array.len());
         let len_class_ids = self.class_ids.as_ref().map(|b| b.array.len());
+        let len_scalar_values = self.scalar_values.as_ref().map(|b| b.array.len());
+        let len_scalar_range = self.scalar_range.as_ref().map(|b| b.array.len());
+        let len_colormap = self.colormap.as_ref().map(|b| b.array.len());
         let len = None
             .or(len_strips)
             .or(len_radii)
@@ -459,6 +554,9 @@ impl LineStrips3D {
             .or(len_labels)
             .or(len_show_labels)
             .or(len_class_ids)
+            .or(len_scalar_values)
+            .or(len_scalar_range)
+            .or(len_colormap)
             .unwrap_or(0);
         self.columns(std::iter::repeat(1).take(len))
     }
@@ -540,6 +638,63 @@ impl LineStrips3D {
         self.class_ids = try_serialize_field(Self::descriptor_class_ids(), class_ids);
         self
     }
+
+    /// Optional scalar values for the line strips.
+    ///
+    /// If present, the spatial viewer maps these values to colors using `scalar_range` and `colormap`.
+    #[inline]
+    pub fn with_scalar_values(
+        mut self,
+        scalar_values: impl IntoIterator<Item = impl Into<crate::components::Scalar>>,
+    ) -> Self {
+        self.scalar_values = try_serialize_field(Self::descriptor_scalar_values(), scalar_values);
+        self
+    }
+
+    /// Optional scalar value range used for colormapping `scalar_values`.
+    ///
+    /// Values outside this range are clamped to the nearest end of the colormap.
+    #[inline]
+    pub fn with_scalar_range(
+        mut self,
+        scalar_range: impl Into<crate::components::ValueRange>,
+    ) -> Self {
+        self.scalar_range = try_serialize_field(Self::descriptor_scalar_range(), [scalar_range]);
+        self
+    }
+
+    /// This method makes it possible to pack multiple [`crate::components::ValueRange`] in a single component batch.
+    ///
+    /// This only makes sense when used in conjunction with [`Self::columns`]. [`Self::with_scalar_range`] should
+    /// be used when logging a single row's worth of data.
+    #[inline]
+    pub fn with_many_scalar_range(
+        mut self,
+        scalar_range: impl IntoIterator<Item = impl Into<crate::components::ValueRange>>,
+    ) -> Self {
+        self.scalar_range = try_serialize_field(Self::descriptor_scalar_range(), scalar_range);
+        self
+    }
+
+    /// Optional colormap used for scalar-colored line strips.
+    #[inline]
+    pub fn with_colormap(mut self, colormap: impl Into<crate::components::Colormap>) -> Self {
+        self.colormap = try_serialize_field(Self::descriptor_colormap(), [colormap]);
+        self
+    }
+
+    /// This method makes it possible to pack multiple [`crate::components::Colormap`] in a single component batch.
+    ///
+    /// This only makes sense when used in conjunction with [`Self::columns`]. [`Self::with_colormap`] should
+    /// be used when logging a single row's worth of data.
+    #[inline]
+    pub fn with_many_colormap(
+        mut self,
+        colormap: impl IntoIterator<Item = impl Into<crate::components::Colormap>>,
+    ) -> Self {
+        self.colormap = try_serialize_field(Self::descriptor_colormap(), colormap);
+        self
+    }
 }
 
 impl ::re_byte_size::SizeBytes for LineStrips3D {
@@ -551,5 +706,8 @@ impl ::re_byte_size::SizeBytes for LineStrips3D {
             + self.labels.heap_size_bytes()
             + self.show_labels.heap_size_bytes()
             + self.class_ids.heap_size_bytes()
+            + self.scalar_values.heap_size_bytes()
+            + self.scalar_range.heap_size_bytes()
+            + self.colormap.heap_size_bytes()
     }
 }

@@ -19,10 +19,11 @@ pub enum Colormap {
     Turbo = 5,
     Viridis = 6,
     CyanToYellow = 7,
+    RedToGreen = 8,
 }
 
 impl Colormap {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Grayscale,
         Self::Inferno,
         Self::Magma,
@@ -30,6 +31,7 @@ impl Colormap {
         Self::Turbo,
         Self::Viridis,
         Self::CyanToYellow,
+        Self::RedToGreen,
     ];
 }
 
@@ -43,6 +45,7 @@ impl std::fmt::Display for Colormap {
             Self::Turbo => write!(f, "Turbo"),
             Self::Viridis => write!(f, "Viridis"),
             Self::CyanToYellow => write!(f, "CyanToYellow"),
+            Self::RedToGreen => write!(f, "RedToGreen"),
         }
     }
 }
@@ -56,6 +59,7 @@ pub fn colormap_srgb(which: Colormap, t: f32) -> [u8; 4] {
         Colormap::Magma => colormap_magma_srgb(t),
         Colormap::Inferno => colormap_inferno_srgb(t),
         Colormap::CyanToYellow => colormap_cyan_to_yellow_srgb(t),
+        Colormap::RedToGreen => colormap_red_to_green_srgb(t),
     }
 }
 
@@ -210,4 +214,14 @@ pub fn colormap_cyan_to_yellow_srgb(t: f32) -> [u8; 4] {
         ((1. - 3. * t) * (255. / 4.)).max(0.) as u8,
         255,
     ]
+}
+
+/// Returns an sRGB red-to-green color, assuming `t` is normalized.
+pub fn colormap_red_to_green_srgb(t: f32) -> [u8; 4] {
+    debug_assert!((0.0..=1.0).contains(&t));
+
+    let t = t.clamp(0.0, 1.0);
+    let r = ((1.0 - t) * u8::MAX as f32 + 0.5) as u8;
+    let g = (t * u8::MAX as f32 + 0.5) as u8;
+    [r, g, 0, 255]
 }

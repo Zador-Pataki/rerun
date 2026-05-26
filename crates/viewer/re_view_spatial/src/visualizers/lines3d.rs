@@ -2,7 +2,9 @@ use re_log_types::Instance;
 use re_renderer::{renderer::LineStripFlags, PickingLayerInstanceId};
 use re_types::{
     archetypes::LineStrips3D,
-    components::{ClassId, Color, LineStrip3D, Radius, ShowLabels, Text},
+    components::{
+        ClassId, Color, Colormap, LineStrip3D, Radius, Scalar, ShowLabels, Text, ValueRange,
+    },
     ArrowString, Component as _,
 };
 use re_view::{process_annotation_slices, process_color_slice};
@@ -65,8 +67,7 @@ impl Lines3DVisualizer {
             // TODO(andreas): It would be nice to have this handle this fallback as part of the query.
             let radii =
                 process_radius_slice(entity_path, num_instances, data.radii, Radius::default());
-            let colors =
-                process_color_slice(ctx, self, num_instances, &annotation_infos, data.colors);
+            let colors = self.process_line_colors(ctx, num_instances, &annotation_infos, &data);
 
             let world_from_obj = ent_context
                 .transform_info
@@ -139,6 +140,37 @@ impl Lines3DVisualizer {
             ));
         }
     }
+
+    fn process_line_colors(
+        &self,
+        ctx: &QueryContext<'_>,
+        num_instances: usize,
+        annotation_infos: &re_viewer_context::ResolvedAnnotationInfos,
+        data: &Lines3DComponentData<'_>,
+    ) -> Vec<re_renderer::Color32> {
+        if !data.scalar_values.is_empty() {
+            let colormap = data.colormap.unwrap_or_else(|| {
+                <Self as TypedComponentFallbackProvider<Colormap>>::fallback_for(self, ctx)
+            });
+            let scalar_range = data
+                .scalar_range
+                .or_else(|| scalar_range_from_values(data.scalar_values))
+                .unwrap_or_else(|| {
+                    let range = <Self as TypedComponentFallbackProvider<ValueRange>>::fallback_for(
+                        self, ctx,
+                    );
+                    range.0 .0
+                });
+            return colormap_scalar_values(
+                num_instances,
+                data.scalar_values,
+                scalar_range,
+                colormap,
+            );
+        }
+
+        process_color_slice(ctx, self, num_instances, annotation_infos, data.colors)
+    }
 }
 
 // ---
@@ -152,6 +184,9 @@ struct Lines3DComponentData<'a> {
     radii: &'a [Radius],
     labels: Vec<ArrowString>,
     class_ids: &'a [ClassId],
+    scalar_values: &'a [f64],
+    scalar_range: Option<[f64; 2]>,
+    colormap: Option<Colormap>,
 
     // Non-repeated
     show_labels: Option<ShowLabels>,
@@ -226,17 +261,34 @@ impl VisualizerSystem for Lines3DVisualizer {
                 let all_labels = results.iter_as(timeline, Text::name());
                 let all_class_ids = results.iter_as(timeline, ClassId::name());
                 let all_show_labels = results.iter_as(timeline, ShowLabels::name());
+                let all_scalar_values = results.iter_as(timeline, Scalar::name());
+                let all_scalar_ranges = results.iter_as(timeline, ValueRange::name());
+                let all_colormaps = results.iter_as(timeline, Colormap::name());
 
-                let data = re_query::range_zip_1x5(
+                let data = re_query::range_zip_1x8(
                     all_strips_indexed,
                     all_colors.slice::<u32>(),
                     all_radii.slice::<f32>(),
                     all_labels.slice::<String>(),
                     all_class_ids.slice::<u16>(),
                     all_show_labels.slice::<bool>(),
+                    all_scalar_values.slice::<f64>(),
+                    all_scalar_ranges.slice::<[f64; 2]>(),
+                    all_colormaps.slice::<u8>(),
                 )
                 .map(
-                    |(_index, strips, colors, radii, labels, class_ids, show_labels)| {
+                    |(
+                        _index,
+                        strips,
+                        colors,
+                        radii,
+                        labels,
+                        class_ids,
+                        show_labels,
+                        scalar_values,
+                        scalar_range,
+                        colormap,
+                    )| {
                         Lines3DComponentData {
                             strips,
                             colors: colors.map_or(&[], |colors| bytemuck::cast_slice(colors)),
@@ -244,6 +296,9 @@ impl VisualizerSystem for Lines3DVisualizer {
                             labels: labels.unwrap_or_default(),
                             class_ids: class_ids
                                 .map_or(&[], |class_ids| bytemuck::cast_slice(class_ids)),
+                            scalar_values: scalar_values.unwrap_or_default(),
+                            scalar_range: first_copied(scalar_range),
+                            colormap: first_copied(colormap).and_then(Colormap::from_u8),
                             show_labels: show_labels
                                 .map(|b| !b.is_empty() && b.value(0))
                                 .map(Into::into),
@@ -285,4 +340,63 @@ impl TypedComponentFallbackProvider<ShowLabels> for Lines3DVisualizer {
     }
 }
 
-re_viewer_context::impl_component_fallback_provider!(Lines3DVisualizer => [Color, ShowLabels]);
+impl TypedComponentFallbackProvider<ValueRange> for Lines3DVisualizer {
+    fn fallback_for(&self, _ctx: &QueryContext<'_>) -> ValueRange {
+        ValueRange::default()
+    }
+}
+
+impl TypedComponentFallbackProvider<Colormap> for Lines3DVisualizer {
+    fn fallback_for(&self, _ctx: &QueryContext<'_>) -> Colormap {
+        Colormap::RedToGreen
+    }
+}
+
+re_viewer_context::impl_component_fallback_provider!(Lines3DVisualizer => [Color, ShowLabels, ValueRange, Colormap]);
+
+fn colormap_scalar_values(
+    num_instances: usize,
+    scalar_values: &[f64],
+    scalar_range: [f64; 2],
+    colormap: Colormap,
+) -> Vec<re_renderer::Color32> {
+    let [range_min, range_max] = scalar_range;
+    let range_width = range_max - range_min;
+    let last_value = scalar_values.last().copied().unwrap_or_default();
+    let colormap = re_viewer_context::gpu_bridge::colormap_to_re_renderer(colormap);
+
+    (0..num_instances)
+        .map(|index| {
+            let value = scalar_values.get(index).copied().unwrap_or(last_value);
+            let t = if range_width.is_finite() && range_width > 0.0 && value.is_finite() {
+                ((value - range_min) / range_width).clamp(0.0, 1.0) as f32
+            } else {
+                0.0
+            };
+            let [r, g, b, a] = re_renderer::colormap_srgb(colormap, t);
+            re_renderer::Color32::from_rgba_unmultiplied(r, g, b, a)
+        })
+        .collect()
+}
+
+fn scalar_range_from_values(scalar_values: &[f64]) -> Option<[f64; 2]> {
+    let mut finite_values = scalar_values
+        .iter()
+        .copied()
+        .filter(|value| value.is_finite());
+    let first = finite_values.next()?;
+    let (mut min, mut max) = (first, first);
+    for value in finite_values {
+        min = min.min(value);
+        max = max.max(value);
+    }
+    if min < max {
+        Some([min, max])
+    } else {
+        Some([min, min + 1.0])
+    }
+}
+
+fn first_copied<T: Copy>(slice: Option<&[T]>) -> Option<T> {
+    slice.and_then(|element| element.first()).copied()
+}

@@ -24,4 +24,5 @@ FixedSizeList<2, float64>
 ## Used by
 
 * [`DepthImage`](../archetypes/depth_image.md)
+* [`LineStrips3D`](../archetypes/line_strips3d.md)
 * [`Tensor`](../archetypes/tensor.md)

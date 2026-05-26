@@ -9,6 +9,7 @@ const COLORMAP_PLASMA:         u32 = 4u;
 const COLORMAP_TURBO:          u32 = 5u;
 const COLORMAP_VIRIDIS:        u32 = 6u;
 const COLORMAP_CYAN_TO_YELLOW: u32 = 7u;
+const COLORMAP_RED_TO_GREEN:   u32 = 8u;
 
 /// Returns a gamma-space sRGB in 0-1 range.
 ///
@@ -31,6 +32,8 @@ fn colormap_srgb(which: u32, t_unsaturated: f32) -> vec3f {
         return colormap_viridis_srgb(t);
     } else if which == COLORMAP_CYAN_TO_YELLOW {
         return colormap_cyan_to_yellow_srgb(t);
+    } else if which == COLORMAP_RED_TO_GREEN {
+        return colormap_red_to_green_srgb(t);
     } else {
         return ERROR_RGBA.rgb;
     }
@@ -161,4 +164,9 @@ fn colormap_inferno_srgb(t: f32) -> vec3f {
 fn colormap_cyan_to_yellow_srgb(t: f32) -> vec3f {
     let u = t * 2. - 1.;
     return saturate(vec3f(1. + 3. * u, (1. + 3. * u * u) , 1. - 3. * u) / 4.);
+}
+
+/// Returns a gamma-space sRGB in 0-1 range.
+fn colormap_red_to_green_srgb(t: f32) -> vec3f {
+    return vec3f(1. - t, t, 0.0);
 }

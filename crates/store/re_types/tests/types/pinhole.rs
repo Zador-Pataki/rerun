@@ -17,11 +17,19 @@ fn roundtrip() {
             .serialized()
             .map(|batch| batch.with_descriptor_override(Pinhole::descriptor_camera_xyz())),
         image_plane_distance: None,
+        color: components::Color::from(0xAA0000CC)
+            .serialized()
+            .map(|batch| batch.with_descriptor_override(Pinhole::descriptor_color())),
+        radius: components::Radius::from(42.0)
+            .serialized()
+            .map(|batch| batch.with_descriptor_override(Pinhole::descriptor_radius())),
     };
 
     let arch = Pinhole::new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
         .with_resolution([1.0, 2.0])
-        .with_camera_xyz(components::ViewCoordinates::RDF);
+        .with_camera_xyz(components::ViewCoordinates::RDF)
+        .with_color(0xAA0000CC)
+        .with_radius(42.0);
     similar_asserts::assert_eq!(expected, arch);
 
     eprintln!("arch = {arch:#?}");

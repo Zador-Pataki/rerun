@@ -6,7 +6,11 @@ use re_entity_db::EntityDb;
 use re_log_types::hash::Hash64;
 use re_log_types::{ComponentPath, EntityPath};
 use re_types::blueprint::archetypes::VisualizerOverrides;
-use re_types_core::external::arrow::array::ArrayRef;
+use re_types::{
+    components::{Color, Colormap, PinholeProjection, Radius, Scalar, ValueRange},
+    Component as _,
+};
+use re_types_core::{external::arrow::array::ArrayRef, Loggable as _};
 use re_ui::{list_item, UiExt as _};
 use re_view::latest_at_with_blueprint_resolved_data;
 use re_viewer_context::{
@@ -150,6 +154,30 @@ enum ValueSource {
     FallbackOrPlaceholder,
 }
 
+fn value_range_from_raw(raw: &dyn arrow::array::Array) -> Option<ValueRange> {
+    ValueRange::from_arrow(raw)
+        .ok()
+        .and_then(|values| values.into_iter().next())
+}
+
+fn scalar_range_from_raw_scalars(raw: &dyn arrow::array::Array) -> Option<ValueRange> {
+    let values = Scalar::from_arrow(raw).ok()?;
+
+    let mut finite_values = values
+        .into_iter()
+        .map(|scalar| scalar.0 .0)
+        .filter(|value| value.is_finite());
+
+    let first = finite_values.next()?;
+    let (min, max) = finite_values.fold((first, first), |(min, max), value| {
+        (min.min(value), max.max(value))
+    });
+
+    // Most scalar colormaps use zero as the natural saturation floor. Preserve negative ranges,
+    // but otherwise default the lower bound to zero when inferring from scalar values.
+    Some(ValueRange::new(min.min(0.0), max.max(1.0)))
+}
+
 fn visualizer_components(
     ctx: &ViewContext<'_>,
     ui: &mut egui::Ui,
@@ -174,6 +202,7 @@ fn visualizer_components(
 
     let store_query = ctx.current_query();
     let query_ctx = ctx.query_context(data_result, &store_query);
+    let override_path = data_result.override_path();
 
     // Query fully resolved data.
     let query_shadowed_defaults = true;
@@ -186,9 +215,286 @@ fn visualizer_components(
         query_shadowed_defaults,
     );
 
+    let has_scalar_values =
+        non_empty_component_batch_raw(query_result.overrides.get(&Scalar::name()), &Scalar::name())
+            .is_some()
+            || non_empty_component_batch_raw(
+                query_result.results.get(&Scalar::name()),
+                &Scalar::name(),
+            )
+            .is_some()
+            || non_empty_component_batch_raw(
+                query_result.defaults.get(&Scalar::name()),
+                &Scalar::name(),
+            )
+            .is_some();
+    let has_scalar_coloring_controls = has_scalar_values
+        && query_info.queried.contains(&Scalar::name())
+        && query_info.queried.contains(&ValueRange::name())
+        && query_info.queried.contains(&Colormap::name());
+    let has_camera_pyramid_style_controls =
+        query_info.required.contains(&PinholeProjection::name())
+            && query_info.queried.contains(&Color::name())
+            && query_info.queried.contains(&Radius::name());
+
+    if has_scalar_coloring_controls {
+        let raw_scalar_values = non_empty_component_batch_raw(
+            query_result.overrides.get(&Scalar::name()),
+            &Scalar::name(),
+        )
+        .or_else(|| {
+            non_empty_component_batch_raw(
+                query_result.results.get(&Scalar::name()),
+                &Scalar::name(),
+            )
+        })
+        .or_else(|| {
+            non_empty_component_batch_raw(
+                query_result.defaults.get(&Scalar::name()),
+                &Scalar::name(),
+            )
+        });
+        let inferred_scalar_range = raw_scalar_values
+            .as_ref()
+            .and_then(|(_, raw)| scalar_range_from_raw_scalars(raw.as_ref()));
+
+        let saturation_max_ui = |ui: &mut egui::Ui| {
+            let component_name = ValueRange::name();
+
+            let result_override = query_result.overrides.get(&component_name);
+            let raw_override = non_empty_component_batch_raw(result_override, &component_name);
+
+            let result_store = query_result.results.get(&component_name);
+            let raw_store = non_empty_component_batch_raw(result_store, &component_name);
+
+            let result_default = query_result.defaults.get(&component_name);
+            let raw_default = non_empty_component_batch_raw(result_default, &component_name);
+
+            let raw_fallback = visualizer
+                .fallback_provider()
+                .fallback_for(&query_ctx, component_name);
+
+            let raw_current_value =
+                match (raw_override.clone(), raw_store.clone(), raw_default.clone()) {
+                    (Some((_, raw)), _, _) => raw,
+                    (None, Some((_, raw)), _) => raw,
+                    (None, None, Some((_, raw))) => raw,
+                    (None, None, None) => raw_fallback.clone(),
+                };
+
+            let mut range = value_range_from_raw(raw_current_value.as_ref())
+                .or(inferred_scalar_range)
+                .unwrap_or_default();
+
+            let min = range.start();
+            let mut max = range.end().max(min);
+            let inferred_max = inferred_scalar_range.map_or(max, |range| range.end());
+            let slider_max = [max, inferred_max, min + 1.0, 1.0]
+                .into_iter()
+                .filter(|value| value.is_finite())
+                .fold(min + 1.0, f64::max);
+            let speed = ((slider_max - min).abs() * 0.01).max(0.001);
+
+            ui.list_item()
+                .interactive(false)
+                .show_flat(
+                    ui,
+                    list_item::PropertyContent::new("Saturation max").value_fn(|ui, _style| {
+                        let response = ui
+                            .horizontal(|ui| {
+                                let slider_response = ui.add(
+                                    egui::Slider::new(&mut max, min..=slider_max).show_value(false),
+                                );
+                                let drag_response = ui.add(
+                                    egui::DragValue::new(&mut max)
+                                        .clamp_existing_to_range(false)
+                                        .range(min..=f64::INFINITY)
+                                        .speed(speed),
+                                );
+
+                                slider_response | drag_response
+                            })
+                            .inner;
+
+                        if response.changed() {
+                            *range.end_mut() = max;
+                            ctx.save_blueprint_component(override_path, &range);
+                            ui.ctx().request_repaint();
+                        }
+                    }),
+                )
+                .on_hover_text(
+                    "Upper saturation bound for scalar coloring on this entity in the current view",
+                );
+        };
+
+        let scalar_coloring_component_ui =
+            |ui: &mut egui::Ui, label: &'static str, component_name: ComponentName| {
+                let result_override = query_result.overrides.get(&component_name);
+                let raw_override = non_empty_component_batch_raw(result_override, &component_name);
+
+                let result_store = query_result.results.get(&component_name);
+                let raw_store = non_empty_component_batch_raw(result_store, &component_name);
+
+                let result_default = query_result.defaults.get(&component_name);
+                let raw_default = non_empty_component_batch_raw(result_default, &component_name);
+
+                let raw_fallback = visualizer
+                    .fallback_provider()
+                    .fallback_for(&query_ctx, component_name);
+
+                let (current_value_row_id, raw_current_value) =
+                    match (raw_override.clone(), raw_store.clone(), raw_default.clone()) {
+                        (Some(override_value), _, _) => override_value,
+                        (None, Some(store_value), _) => store_value,
+                        (None, None, Some(default_value)) => default_value,
+                        (None, None, None) => (None, raw_fallback.clone()),
+                    };
+
+                ui.list_item()
+                    .interactive(false)
+                    .show_flat(
+                        ui,
+                        list_item::PropertyContent::new(label)
+                            .value_fn(|ui, _style| {
+                                let allow_multiline = false;
+                                query_ctx.viewer_ctx.component_ui_registry().edit_ui_raw(
+                                    &query_ctx,
+                                    ui,
+                                    ctx.recording(),
+                                    override_path,
+                                    component_name,
+                                    current_value_row_id.map(Hash64::hash),
+                                    raw_current_value.as_ref(),
+                                    allow_multiline,
+                                );
+                            })
+                            .menu_button(&re_ui::icons::MORE, |ui: &mut egui::Ui| {
+                                menu_more(
+                                    ctx,
+                                    ui,
+                                    component_name,
+                                    override_path,
+                                    &raw_override.clone().map(|(_, raw_override)| raw_override),
+                                    raw_default.clone().map(|(_, raw_default)| raw_default),
+                                    raw_fallback.clone(),
+                                    raw_current_value.clone(),
+                                );
+                            }),
+                    )
+                    .on_hover_text(
+                        "Viewer-side scalar coloring override for this entity in the current view",
+                    );
+            };
+
+        ui.list_item()
+            .interactive(false)
+            .show_hierarchical_with_children(
+                ui,
+                ui.make_persistent_id("scalar_coloring"),
+                true,
+                list_item::LabelContent::new("Scalar coloring").min_desired_width(150.0),
+                |ui| {
+                    saturation_max_ui(ui);
+                    scalar_coloring_component_ui(ui, "Scalar range", ValueRange::name());
+                    scalar_coloring_component_ui(ui, "Colormap", Colormap::name());
+                },
+            )
+            .item_response
+            .on_hover_text(
+                "Controls how scalar values on this entity are mapped to line-strip colors",
+            );
+    }
+
+    if has_camera_pyramid_style_controls {
+        let camera_style_component_ui =
+            |ui: &mut egui::Ui, label: &'static str, component_name: ComponentName| {
+                let result_override = query_result.overrides.get(&component_name);
+                let raw_override = non_empty_component_batch_raw(result_override, &component_name);
+
+                let result_store = query_result.results.get(&component_name);
+                let raw_store = non_empty_component_batch_raw(result_store, &component_name);
+
+                let result_default = query_result.defaults.get(&component_name);
+                let raw_default = non_empty_component_batch_raw(result_default, &component_name);
+
+                let raw_fallback = visualizer
+                    .fallback_provider()
+                    .fallback_for(&query_ctx, component_name);
+
+                let (current_value_row_id, raw_current_value) =
+                    match (raw_override.clone(), raw_store.clone(), raw_default.clone()) {
+                        (Some(override_value), _, _) => override_value,
+                        (None, Some(store_value), _) => store_value,
+                        (None, None, Some(default_value)) => default_value,
+                        (None, None, None) => (None, raw_fallback.clone()),
+                    };
+
+                ui.list_item()
+                    .interactive(false)
+                    .show_flat(
+                        ui,
+                        list_item::PropertyContent::new(label)
+                            .value_fn(|ui, _style| {
+                                let allow_multiline = false;
+                                query_ctx.viewer_ctx.component_ui_registry().edit_ui_raw(
+                                    &query_ctx,
+                                    ui,
+                                    ctx.recording(),
+                                    override_path,
+                                    component_name,
+                                    current_value_row_id.map(Hash64::hash),
+                                    raw_current_value.as_ref(),
+                                    allow_multiline,
+                                );
+                            })
+                            .menu_button(&re_ui::icons::MORE, |ui: &mut egui::Ui| {
+                                menu_more(
+                                    ctx,
+                                    ui,
+                                    component_name,
+                                    override_path,
+                                    &raw_override.clone().map(|(_, raw_override)| raw_override),
+                                    raw_default.clone().map(|(_, raw_default)| raw_default),
+                                    raw_fallback.clone(),
+                                    raw_current_value.clone(),
+                                );
+                            }),
+                    )
+                    .on_hover_text(
+                        "Viewer-side camera pyramid style override for this entity in the current view",
+                    );
+            };
+
+        ui.list_item()
+            .interactive(false)
+            .show_hierarchical_with_children(
+                ui,
+                ui.make_persistent_id("camera_pyramid_style"),
+                true,
+                list_item::LabelContent::new("Camera pyramid style").min_desired_width(150.0),
+                |ui| {
+                    camera_style_component_ui(ui, "Color", Color::name());
+                    camera_style_component_ui(ui, "Radius", Radius::name());
+                },
+            )
+            .item_response
+            .on_hover_text("Controls how this camera's pyramid/frustum is drawn in 3D views");
+    }
+
     // TODO(andreas): Should we show required components in a special way?
     for component_name in sorted_component_list_for_ui(query_info.queried.iter()) {
         if component_name.is_indicator_component() {
+            continue;
+        }
+        if has_scalar_coloring_controls
+            && (component_name == ValueRange::name() || component_name == Colormap::name())
+        {
+            continue;
+        }
+        if has_camera_pyramid_style_controls
+            && (component_name == Color::name() || component_name == Radius::name())
+        {
             continue;
         }
 
@@ -221,8 +527,6 @@ fn visualizer_components(
                     (None, raw_fallback.clone()),
                 ),
             };
-
-        let override_path = data_result.override_path();
 
         let value_fn = |ui: &mut egui::Ui, _style| {
             // Edit ui can only handle a single value.
@@ -569,4 +873,34 @@ fn available_inactive_visualizers(
         .map(|(vis, _)| *vis)
         .sorted()
         .collect::<Vec<_>>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scalar_range_from_raw_scalars_uses_zero_floor_for_positive_values() {
+        let raw = Scalar::to_arrow([
+            Scalar::from(0.0),
+            Scalar::from(25.0),
+            Scalar::from(50.0),
+            Scalar::from(100.0),
+        ])
+        .expect("scalar serialization should succeed");
+
+        let range = scalar_range_from_raw_scalars(raw.as_ref())
+            .expect("finite scalar values should produce a range");
+
+        assert_eq!(range, ValueRange::new(0.0, 100.0));
+    }
+
+    #[test]
+    fn value_range_from_raw_deserializes_single_range() {
+        let expected = ValueRange::new(0.0, 50.0);
+        let raw =
+            ValueRange::to_arrow([expected]).expect("value range serialization should succeed");
+
+        assert_eq!(value_range_from_raw(raw.as_ref()), Some(expected));
+    }
 }

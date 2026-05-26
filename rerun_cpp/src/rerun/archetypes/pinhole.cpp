@@ -23,12 +23,16 @@ namespace rerun::archetypes {
                 Descriptor_image_plane_distance
             )
                 .value_or_throw();
+        archetype.color =
+            ComponentBatch::empty<rerun::components::Color>(Descriptor_color).value_or_throw();
+        archetype.radius =
+            ComponentBatch::empty<rerun::components::Radius>(Descriptor_radius).value_or_throw();
         return archetype;
     }
 
     Collection<ComponentColumn> Pinhole::columns(const Collection<uint32_t>& lengths_) {
         std::vector<ComponentColumn> columns;
-        columns.reserve(5);
+        columns.reserve(7);
         if (image_from_camera.has_value()) {
             columns.push_back(image_from_camera.value().partitioned(lengths_).value_or_throw());
         }
@@ -40,6 +44,12 @@ namespace rerun::archetypes {
         }
         if (image_plane_distance.has_value()) {
             columns.push_back(image_plane_distance.value().partitioned(lengths_).value_or_throw());
+        }
+        if (color.has_value()) {
+            columns.push_back(color.value().partitioned(lengths_).value_or_throw());
+        }
+        if (radius.has_value()) {
+            columns.push_back(radius.value().partitioned(lengths_).value_or_throw());
         }
         columns.push_back(
             ComponentColumn::from_indicators<Pinhole>(static_cast<uint32_t>(lengths_.size()))
@@ -61,6 +71,12 @@ namespace rerun::archetypes {
         if (image_plane_distance.has_value()) {
             return columns(std::vector<uint32_t>(image_plane_distance.value().length(), 1));
         }
+        if (color.has_value()) {
+            return columns(std::vector<uint32_t>(color.value().length(), 1));
+        }
+        if (radius.has_value()) {
+            return columns(std::vector<uint32_t>(radius.value().length(), 1));
+        }
         return Collection<ComponentColumn>();
     }
 } // namespace rerun::archetypes
@@ -72,7 +88,7 @@ namespace rerun {
     ) {
         using namespace archetypes;
         std::vector<ComponentBatch> cells;
-        cells.reserve(5);
+        cells.reserve(7);
 
         if (archetype.image_from_camera.has_value()) {
             cells.push_back(archetype.image_from_camera.value());
@@ -85,6 +101,12 @@ namespace rerun {
         }
         if (archetype.image_plane_distance.has_value()) {
             cells.push_back(archetype.image_plane_distance.value());
+        }
+        if (archetype.color.has_value()) {
+            cells.push_back(archetype.color.value());
+        }
+        if (archetype.radius.has_value()) {
+            cells.push_back(archetype.radius.value());
         }
         {
             auto result = ComponentBatch::from_indicator<Pinhole>();

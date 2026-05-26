@@ -22,12 +22,20 @@ namespace rerun::archetypes {
         archetype.class_ids =
             ComponentBatch::empty<rerun::components::ClassId>(Descriptor_class_ids)
                 .value_or_throw();
+        archetype.scalar_values =
+            ComponentBatch::empty<rerun::components::Scalar>(Descriptor_scalar_values)
+                .value_or_throw();
+        archetype.scalar_range =
+            ComponentBatch::empty<rerun::components::ValueRange>(Descriptor_scalar_range)
+                .value_or_throw();
+        archetype.colormap = ComponentBatch::empty<rerun::components::Colormap>(Descriptor_colormap)
+                                 .value_or_throw();
         return archetype;
     }
 
     Collection<ComponentColumn> LineStrips3D::columns(const Collection<uint32_t>& lengths_) {
         std::vector<ComponentColumn> columns;
-        columns.reserve(7);
+        columns.reserve(10);
         if (strips.has_value()) {
             columns.push_back(strips.value().partitioned(lengths_).value_or_throw());
         }
@@ -45,6 +53,15 @@ namespace rerun::archetypes {
         }
         if (class_ids.has_value()) {
             columns.push_back(class_ids.value().partitioned(lengths_).value_or_throw());
+        }
+        if (scalar_values.has_value()) {
+            columns.push_back(scalar_values.value().partitioned(lengths_).value_or_throw());
+        }
+        if (scalar_range.has_value()) {
+            columns.push_back(scalar_range.value().partitioned(lengths_).value_or_throw());
+        }
+        if (colormap.has_value()) {
+            columns.push_back(colormap.value().partitioned(lengths_).value_or_throw());
         }
         columns.push_back(
             ComponentColumn::from_indicators<LineStrips3D>(static_cast<uint32_t>(lengths_.size()))
@@ -72,6 +89,15 @@ namespace rerun::archetypes {
         if (class_ids.has_value()) {
             return columns(std::vector<uint32_t>(class_ids.value().length(), 1));
         }
+        if (scalar_values.has_value()) {
+            return columns(std::vector<uint32_t>(scalar_values.value().length(), 1));
+        }
+        if (scalar_range.has_value()) {
+            return columns(std::vector<uint32_t>(scalar_range.value().length(), 1));
+        }
+        if (colormap.has_value()) {
+            return columns(std::vector<uint32_t>(colormap.value().length(), 1));
+        }
         return Collection<ComponentColumn>();
     }
 } // namespace rerun::archetypes
@@ -83,7 +109,7 @@ namespace rerun {
     ) {
         using namespace archetypes;
         std::vector<ComponentBatch> cells;
-        cells.reserve(7);
+        cells.reserve(10);
 
         if (archetype.strips.has_value()) {
             cells.push_back(archetype.strips.value());
@@ -102,6 +128,15 @@ namespace rerun {
         }
         if (archetype.class_ids.has_value()) {
             cells.push_back(archetype.class_ids.value());
+        }
+        if (archetype.scalar_values.has_value()) {
+            cells.push_back(archetype.scalar_values.value());
+        }
+        if (archetype.scalar_range.has_value()) {
+            cells.push_back(archetype.scalar_range.value());
+        }
+        if (archetype.colormap.has_value()) {
+            cells.push_back(archetype.colormap.value());
         }
         {
             auto result = ComponentBatch::from_indicator<LineStrips3D>();

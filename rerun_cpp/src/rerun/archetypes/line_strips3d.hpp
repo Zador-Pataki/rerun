@@ -8,10 +8,13 @@
 #include "../component_column.hpp"
 #include "../components/class_id.hpp"
 #include "../components/color.hpp"
+#include "../components/colormap.hpp"
 #include "../components/line_strip3d.hpp"
 #include "../components/radius.hpp"
+#include "../components/scalar.hpp"
 #include "../components/show_labels.hpp"
 #include "../components/text.hpp"
+#include "../components/value_range.hpp"
 #include "../indicator_component.hpp"
 #include "../result.hpp"
 
@@ -124,6 +127,19 @@ namespace rerun::archetypes {
         /// The `components::ClassId` provides colors and labels if not specified explicitly.
         std::optional<ComponentBatch> class_ids;
 
+        /// Optional scalar values for the line strips.
+        ///
+        /// If present, the spatial viewer maps these values to colors using `scalar_range` and `colormap`.
+        std::optional<ComponentBatch> scalar_values;
+
+        /// Optional scalar value range used for colormapping `scalar_values`.
+        ///
+        /// Values outside this range are clamped to the nearest end of the colormap.
+        std::optional<ComponentBatch> scalar_range;
+
+        /// Optional colormap used for scalar-colored line strips.
+        std::optional<ComponentBatch> colormap;
+
       public:
         static constexpr const char IndicatorComponentName[] =
             "rerun.components.LineStrips3DIndicator";
@@ -159,6 +175,21 @@ namespace rerun::archetypes {
         static constexpr auto Descriptor_class_ids = ComponentDescriptor(
             ArchetypeName, "class_ids",
             Loggable<rerun::components::ClassId>::Descriptor.component_name
+        );
+        /// `ComponentDescriptor` for the `scalar_values` field.
+        static constexpr auto Descriptor_scalar_values = ComponentDescriptor(
+            ArchetypeName, "scalar_values",
+            Loggable<rerun::components::Scalar>::Descriptor.component_name
+        );
+        /// `ComponentDescriptor` for the `scalar_range` field.
+        static constexpr auto Descriptor_scalar_range = ComponentDescriptor(
+            ArchetypeName, "scalar_range",
+            Loggable<rerun::components::ValueRange>::Descriptor.component_name
+        );
+        /// `ComponentDescriptor` for the `colormap` field.
+        static constexpr auto Descriptor_colormap = ComponentDescriptor(
+            ArchetypeName, "colormap",
+            Loggable<rerun::components::Colormap>::Descriptor.component_name
         );
 
       public:
@@ -232,6 +263,55 @@ namespace rerun::archetypes {
         LineStrips3D with_class_ids(const Collection<rerun::components::ClassId>& _class_ids) && {
             class_ids =
                 ComponentBatch::from_loggable(_class_ids, Descriptor_class_ids).value_or_throw();
+            return std::move(*this);
+        }
+
+        /// Optional scalar values for the line strips.
+        ///
+        /// If present, the spatial viewer maps these values to colors using `scalar_range` and `colormap`.
+        LineStrips3D with_scalar_values(const Collection<rerun::components::Scalar>& _scalar_values
+        ) && {
+            scalar_values = ComponentBatch::from_loggable(_scalar_values, Descriptor_scalar_values)
+                                .value_or_throw();
+            return std::move(*this);
+        }
+
+        /// Optional scalar value range used for colormapping `scalar_values`.
+        ///
+        /// Values outside this range are clamped to the nearest end of the colormap.
+        LineStrips3D with_scalar_range(const rerun::components::ValueRange& _scalar_range) && {
+            scalar_range = ComponentBatch::from_loggable(_scalar_range, Descriptor_scalar_range)
+                               .value_or_throw();
+            return std::move(*this);
+        }
+
+        /// This method makes it possible to pack multiple `scalar_range` in a single component batch.
+        ///
+        /// This only makes sense when used in conjunction with `columns`. `with_scalar_range` should
+        /// be used when logging a single row's worth of data.
+        LineStrips3D with_many_scalar_range(
+            const Collection<rerun::components::ValueRange>& _scalar_range
+        ) && {
+            scalar_range = ComponentBatch::from_loggable(_scalar_range, Descriptor_scalar_range)
+                               .value_or_throw();
+            return std::move(*this);
+        }
+
+        /// Optional colormap used for scalar-colored line strips.
+        LineStrips3D with_colormap(const rerun::components::Colormap& _colormap) && {
+            colormap =
+                ComponentBatch::from_loggable(_colormap, Descriptor_colormap).value_or_throw();
+            return std::move(*this);
+        }
+
+        /// This method makes it possible to pack multiple `colormap` in a single component batch.
+        ///
+        /// This only makes sense when used in conjunction with `columns`. `with_colormap` should
+        /// be used when logging a single row's worth of data.
+        LineStrips3D with_many_colormap(const Collection<rerun::components::Colormap>& _colormap
+        ) && {
+            colormap =
+                ComponentBatch::from_loggable(_colormap, Descriptor_colormap).value_or_throw();
             return std::move(*this);
         }
 

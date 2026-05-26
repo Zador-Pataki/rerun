@@ -17,6 +17,9 @@ title: "LineStrips3D"
 * `labels`: [`Text`](../components/text.md)
 * `show_labels`: [`ShowLabels`](../components/show_labels.md)
 * `class_ids`: [`ClassId`](../components/class_id.md)
+* `scalar_values`: [`Scalar`](../components/scalar.md)
+* `scalar_range`: [`ValueRange`](../components/value_range.md)
+* `colormap`: [`Colormap`](../components/colormap.md)
 
 
 ## Can be shown in

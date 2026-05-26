@@ -5,6 +5,7 @@ from typing import Any, cast
 
 import numpy.typing as npt
 
+from .. import datatypes
 from ..datatypes import Mat3x3Like, Vec2D, Vec2DLike, ViewCoordinatesLike
 from ..error_utils import _send_warning_or_raise, catch_and_log_exceptions
 
@@ -25,6 +26,8 @@ class PinholeExt:
         fov_y: float | None = None,
         aspect_ratio: float | None = None,
         image_plane_distance: float | None = None,
+        color: datatypes.Rgba32Like | None = None,
+        radius: datatypes.Float32Like | None = None,
     ) -> None:
         """
         Create a new instance of the Pinhole archetype.
@@ -86,6 +89,12 @@ class PinholeExt:
             Aspect ratio (width/height).
         image_plane_distance:
             The distance from the camera origin to the image plane when the projection is shown in a 3D viewer.
+            This is only used for visualization purposes, and does not affect the projection itself.
+        color:
+            Color used to draw the camera frustum in 3D views.
+            This is only used for visualization purposes, and does not affect the projection itself.
+        radius:
+            Radius used to draw the camera frustum lines in 3D views.
             This is only used for visualization purposes, and does not affect the projection itself.
 
         """
@@ -155,6 +164,8 @@ class PinholeExt:
                 resolution=resolution,
                 camera_xyz=camera_xyz,
                 image_plane_distance=image_plane_distance,
+                color=color,
+                radius=radius,
             )
             return
 

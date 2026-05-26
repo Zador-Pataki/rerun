@@ -85,6 +85,8 @@ class Pinhole(PinholeExt, Archetype):
             resolution=None,
             camera_xyz=None,
             image_plane_distance=None,
+            color=None,
+            radius=None,
         )
 
     @classmethod
@@ -103,6 +105,8 @@ class Pinhole(PinholeExt, Archetype):
         resolution: datatypes.Vec2DLike | None = None,
         camera_xyz: datatypes.ViewCoordinatesLike | None = None,
         image_plane_distance: datatypes.Float32Like | None = None,
+        color: datatypes.Rgba32Like | None = None,
+        radius: datatypes.Float32Like | None = None,
     ) -> Pinhole:
         """
         Update only some specific fields of a `Pinhole`.
@@ -154,6 +158,14 @@ class Pinhole(PinholeExt, Archetype):
             The distance from the camera origin to the image plane when the projection is shown in a 3D viewer.
 
             This is only used for visualization purposes, and does not affect the projection itself.
+        color:
+            Color used to draw the camera frustum in 3D views.
+
+            This is only used for visualization purposes, and does not affect the projection itself.
+        radius:
+            Radius used to draw the camera frustum lines in 3D views.
+
+            This is only used for visualization purposes, and does not affect the projection itself.
 
         """
 
@@ -164,6 +176,8 @@ class Pinhole(PinholeExt, Archetype):
                 "resolution": resolution,
                 "camera_xyz": camera_xyz,
                 "image_plane_distance": image_plane_distance,
+                "color": color,
+                "radius": radius,
             }
 
             if clear_unset:
@@ -188,6 +202,8 @@ class Pinhole(PinholeExt, Archetype):
         resolution: datatypes.Vec2DArrayLike | None = None,
         camera_xyz: datatypes.ViewCoordinatesArrayLike | None = None,
         image_plane_distance: datatypes.Float32ArrayLike | None = None,
+        color: datatypes.Rgba32ArrayLike | None = None,
+        radius: datatypes.Float32ArrayLike | None = None,
     ) -> ComponentColumnList:
         """
         Construct a new column-oriented component bundle.
@@ -242,6 +258,14 @@ class Pinhole(PinholeExt, Archetype):
             The distance from the camera origin to the image plane when the projection is shown in a 3D viewer.
 
             This is only used for visualization purposes, and does not affect the projection itself.
+        color:
+            Color used to draw the camera frustum in 3D views.
+
+            This is only used for visualization purposes, and does not affect the projection itself.
+        radius:
+            Radius used to draw the camera frustum lines in 3D views.
+
+            This is only used for visualization purposes, and does not affect the projection itself.
 
         """
 
@@ -252,6 +276,8 @@ class Pinhole(PinholeExt, Archetype):
                 resolution=resolution,
                 camera_xyz=camera_xyz,
                 image_plane_distance=image_plane_distance,
+                color=color,
+                radius=radius,
             )
 
         batches = inst.as_component_batches(include_indicators=False)
@@ -263,6 +289,8 @@ class Pinhole(PinholeExt, Archetype):
             "resolution": resolution,
             "camera_xyz": camera_xyz,
             "image_plane_distance": image_plane_distance,
+            "color": color,
+            "radius": radius,
         }
         columns = []
 
@@ -360,6 +388,28 @@ class Pinhole(PinholeExt, Archetype):
         converter=components.ImagePlaneDistanceBatch._converter,  # type: ignore[misc]
     )
     # The distance from the camera origin to the image plane when the projection is shown in a 3D viewer.
+    #
+    # This is only used for visualization purposes, and does not affect the projection itself.
+    #
+    # (Docstring intentionally commented out to hide this field from the docs)
+
+    color: components.ColorBatch | None = field(
+        metadata={"component": True},
+        default=None,
+        converter=components.ColorBatch._converter,  # type: ignore[misc]
+    )
+    # Color used to draw the camera frustum in 3D views.
+    #
+    # This is only used for visualization purposes, and does not affect the projection itself.
+    #
+    # (Docstring intentionally commented out to hide this field from the docs)
+
+    radius: components.RadiusBatch | None = field(
+        metadata={"component": True},
+        default=None,
+        converter=components.RadiusBatch._converter,  # type: ignore[misc]
+    )
+    # Radius used to draw the camera frustum lines in 3D views.
     #
     # This is only used for visualization purposes, and does not affect the projection itself.
     #

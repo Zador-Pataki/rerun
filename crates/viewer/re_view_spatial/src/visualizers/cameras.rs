@@ -3,7 +3,7 @@ use re_log_types::Instance;
 use re_renderer::renderer::LineStripFlags;
 use re_types::{
     archetypes::Pinhole,
-    components::{self},
+    components::{self, Color, Radius},
     Archetype as _,
 };
 use re_view::latest_at_with_blueprint_resolved_data;
@@ -19,8 +19,6 @@ use crate::{
     contexts::TransformTreeContext, resolution_of_image_at, space_camera_3d::SpaceCamera3D,
     ui::SpatialViewState,
 };
-
-const CAMERA_COLOR: re_renderer::Color32 = re_renderer::Color32::from_rgb(150, 150, 150);
 
 pub struct CamerasVisualizer {
     pub data: SpatialViewVisualizerData,
@@ -48,6 +46,8 @@ struct CameraComponentDataWithFallbacks {
     pinhole: crate::Pinhole,
     camera_xyz: components::ViewCoordinates,
     image_plane_distance: f32,
+    color: Color,
+    radius: Radius,
 }
 
 impl CamerasVisualizer {
@@ -166,7 +166,8 @@ impl CamerasVisualizer {
             ),
         ];
 
-        let radius = re_renderer::Size::new_ui_points(1.0);
+        let radius = re_renderer::Size(*pinhole_properties.radius.0);
+        let color = pinhole_properties.color.into();
         let instance_path_for_picking =
             re_entity_db::InstancePathHash::instance(ent_path, instance);
         let instance_layer_id =
@@ -187,7 +188,7 @@ impl CamerasVisualizer {
             let lines = batch
                 .add_strip(strip.into_iter())
                 .radius(radius)
-                .color(CAMERA_COLOR)
+                .color(color)
                 .flags(flags)
                 .picking_instance_id(instance_layer_id.instance);
 
@@ -266,6 +267,12 @@ impl VisualizerSystem for CamerasVisualizer {
             let image_plane_distance = query_results
                 .get_mono::<components::ImagePlaneDistance>()
                 .unwrap_or_else(|| self.fallback_for(&query_ctx));
+            let color = query_results
+                .get_mono::<Color>()
+                .unwrap_or_else(|| self.fallback_for(&query_ctx));
+            let radius = query_results
+                .get_mono::<Radius>()
+                .unwrap_or_else(|| self.fallback_for(&query_ctx));
 
             let component_data = CameraComponentDataWithFallbacks {
                 pinhole: crate::Pinhole {
@@ -274,6 +281,8 @@ impl VisualizerSystem for CamerasVisualizer {
                 },
                 camera_xyz,
                 image_plane_distance: image_plane_distance.into(),
+                color,
+                radius,
             };
 
             let entity_highlight = query
@@ -344,8 +353,22 @@ impl TypedComponentFallbackProvider<components::Resolution> for CamerasVisualize
     }
 }
 
+impl TypedComponentFallbackProvider<Color> for CamerasVisualizer {
+    fn fallback_for(&self, _ctx: &QueryContext<'_>) -> Color {
+        Color::from_rgb(150, 150, 150)
+    }
+}
+
+impl TypedComponentFallbackProvider<Radius> for CamerasVisualizer {
+    fn fallback_for(&self, _ctx: &QueryContext<'_>) -> Radius {
+        Radius::ONE_UI_POINTS
+    }
+}
+
 re_viewer_context::impl_component_fallback_provider!(CamerasVisualizer => [
     components::ImagePlaneDistance,
     components::ViewCoordinates,
-    components::Resolution
+    components::Resolution,
+    Color,
+    Radius
 ]);

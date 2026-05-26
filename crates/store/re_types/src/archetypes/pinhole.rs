@@ -138,6 +138,16 @@ pub struct Pinhole {
     ///
     /// This is only used for visualization purposes, and does not affect the projection itself.
     pub image_plane_distance: Option<SerializedComponentBatch>,
+
+    /// Color used to draw the camera frustum in 3D views.
+    ///
+    /// This is only used for visualization purposes, and does not affect the projection itself.
+    pub color: Option<SerializedComponentBatch>,
+
+    /// Radius used to draw the camera frustum lines in 3D views.
+    ///
+    /// This is only used for visualization purposes, and does not affect the projection itself.
+    pub radius: Option<SerializedComponentBatch>,
 }
 
 impl Pinhole {
@@ -181,6 +191,26 @@ impl Pinhole {
         }
     }
 
+    /// Returns the [`ComponentDescriptor`] for [`Self::color`].
+    #[inline]
+    pub fn descriptor_color() -> ComponentDescriptor {
+        ComponentDescriptor {
+            archetype_name: Some("rerun.archetypes.Pinhole".into()),
+            component_name: "rerun.components.Color".into(),
+            archetype_field_name: Some("color".into()),
+        }
+    }
+
+    /// Returns the [`ComponentDescriptor`] for [`Self::radius`].
+    #[inline]
+    pub fn descriptor_radius() -> ComponentDescriptor {
+        ComponentDescriptor {
+            archetype_name: Some("rerun.archetypes.Pinhole".into()),
+            component_name: "rerun.components.Radius".into(),
+            archetype_field_name: Some("radius".into()),
+        }
+    }
+
     /// Returns the [`ComponentDescriptor`] for the associated indicator component.
     #[inline]
     pub fn descriptor_indicator() -> ComponentDescriptor {
@@ -203,15 +233,17 @@ static RECOMMENDED_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 2usiz
         ]
     });
 
-static OPTIONAL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 2usize]> =
+static OPTIONAL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 4usize]> =
     once_cell::sync::Lazy::new(|| {
         [
             Pinhole::descriptor_camera_xyz(),
             Pinhole::descriptor_image_plane_distance(),
+            Pinhole::descriptor_color(),
+            Pinhole::descriptor_radius(),
         ]
     });
 
-static ALL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 5usize]> =
+static ALL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 7usize]> =
     once_cell::sync::Lazy::new(|| {
         [
             Pinhole::descriptor_image_from_camera(),
@@ -219,12 +251,14 @@ static ALL_COMPONENTS: once_cell::sync::Lazy<[ComponentDescriptor; 5usize]> =
             Pinhole::descriptor_indicator(),
             Pinhole::descriptor_camera_xyz(),
             Pinhole::descriptor_image_plane_distance(),
+            Pinhole::descriptor_color(),
+            Pinhole::descriptor_radius(),
         ]
     });
 
 impl Pinhole {
-    /// The total number of components in the archetype: 1 required, 2 recommended, 2 optional
-    pub const NUM_COMPONENTS: usize = 5usize;
+    /// The total number of components in the archetype: 1 required, 2 recommended, 4 optional
+    pub const NUM_COMPONENTS: usize = 7usize;
 }
 
 /// Indicator component for the [`Pinhole`] [`::re_types_core::Archetype`]
@@ -299,11 +333,19 @@ impl ::re_types_core::Archetype for Pinhole {
                     Self::descriptor_image_plane_distance(),
                 )
             });
+        let color = arrays_by_descr
+            .get(&Self::descriptor_color())
+            .map(|array| SerializedComponentBatch::new(array.clone(), Self::descriptor_color()));
+        let radius = arrays_by_descr
+            .get(&Self::descriptor_radius())
+            .map(|array| SerializedComponentBatch::new(array.clone(), Self::descriptor_radius()));
         Ok(Self {
             image_from_camera,
             resolution,
             camera_xyz,
             image_plane_distance,
+            color,
+            radius,
         })
     }
 }
@@ -318,6 +360,8 @@ impl ::re_types_core::AsComponents for Pinhole {
             self.resolution.clone(),
             self.camera_xyz.clone(),
             self.image_plane_distance.clone(),
+            self.color.clone(),
+            self.radius.clone(),
         ]
         .into_iter()
         .flatten()
@@ -339,6 +383,8 @@ impl Pinhole {
             resolution: None,
             camera_xyz: None,
             image_plane_distance: None,
+            color: None,
+            radius: None,
         }
     }
 
@@ -368,6 +414,14 @@ impl Pinhole {
             image_plane_distance: Some(SerializedComponentBatch::new(
                 crate::components::ImagePlaneDistance::arrow_empty(),
                 Self::descriptor_image_plane_distance(),
+            )),
+            color: Some(SerializedComponentBatch::new(
+                crate::components::Color::arrow_empty(),
+                Self::descriptor_color(),
+            )),
+            radius: Some(SerializedComponentBatch::new(
+                crate::components::Radius::arrow_empty(),
+                Self::descriptor_radius(),
             )),
         }
     }
@@ -403,6 +457,12 @@ impl Pinhole {
             self.image_plane_distance
                 .map(|image_plane_distance| image_plane_distance.partitioned(_lengths.clone()))
                 .transpose()?,
+            self.color
+                .map(|color| color.partitioned(_lengths.clone()))
+                .transpose()?,
+            self.radius
+                .map(|radius| radius.partitioned(_lengths.clone()))
+                .transpose()?,
         ];
         Ok(columns
             .into_iter()
@@ -424,11 +484,15 @@ impl Pinhole {
         let len_resolution = self.resolution.as_ref().map(|b| b.array.len());
         let len_camera_xyz = self.camera_xyz.as_ref().map(|b| b.array.len());
         let len_image_plane_distance = self.image_plane_distance.as_ref().map(|b| b.array.len());
+        let len_color = self.color.as_ref().map(|b| b.array.len());
+        let len_radius = self.radius.as_ref().map(|b| b.array.len());
         let len = None
             .or(len_image_from_camera)
             .or(len_resolution)
             .or(len_camera_xyz)
             .or(len_image_plane_distance)
+            .or(len_color)
+            .or(len_radius)
             .unwrap_or(0);
         self.columns(std::iter::repeat(1).take(len))
     }
@@ -564,6 +628,50 @@ impl Pinhole {
         );
         self
     }
+
+    /// Color used to draw the camera frustum in 3D views.
+    ///
+    /// This is only used for visualization purposes, and does not affect the projection itself.
+    #[inline]
+    pub fn with_color(mut self, color: impl Into<crate::components::Color>) -> Self {
+        self.color = try_serialize_field(Self::descriptor_color(), [color]);
+        self
+    }
+
+    /// This method makes it possible to pack multiple [`crate::components::Color`] in a single component batch.
+    ///
+    /// This only makes sense when used in conjunction with [`Self::columns`]. [`Self::with_color`] should
+    /// be used when logging a single row's worth of data.
+    #[inline]
+    pub fn with_many_color(
+        mut self,
+        color: impl IntoIterator<Item = impl Into<crate::components::Color>>,
+    ) -> Self {
+        self.color = try_serialize_field(Self::descriptor_color(), color);
+        self
+    }
+
+    /// Radius used to draw the camera frustum lines in 3D views.
+    ///
+    /// This is only used for visualization purposes, and does not affect the projection itself.
+    #[inline]
+    pub fn with_radius(mut self, radius: impl Into<crate::components::Radius>) -> Self {
+        self.radius = try_serialize_field(Self::descriptor_radius(), [radius]);
+        self
+    }
+
+    /// This method makes it possible to pack multiple [`crate::components::Radius`] in a single component batch.
+    ///
+    /// This only makes sense when used in conjunction with [`Self::columns`]. [`Self::with_radius`] should
+    /// be used when logging a single row's worth of data.
+    #[inline]
+    pub fn with_many_radius(
+        mut self,
+        radius: impl IntoIterator<Item = impl Into<crate::components::Radius>>,
+    ) -> Self {
+        self.radius = try_serialize_field(Self::descriptor_radius(), radius);
+        self
+    }
 }
 
 impl ::re_byte_size::SizeBytes for Pinhole {
@@ -573,5 +681,7 @@ impl ::re_byte_size::SizeBytes for Pinhole {
             + self.resolution.heap_size_bytes()
             + self.camera_xyz.heap_size_bytes()
             + self.image_plane_distance.heap_size_bytes()
+            + self.color.heap_size_bytes()
+            + self.radius.heap_size_bytes()
     }
 }

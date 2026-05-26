@@ -71,6 +71,11 @@ namespace rerun::components {
         /// It is especially suited for visualizing signed values.
         /// It interpolates from cyan to blue to dark gray to brass to yellow.
         CyanToYellow = 7,
+
+        /// A simple red to green gradient.
+        ///
+        /// This is useful for visualizing scalar scores where low values are bad and high values are good.
+        RedToGreen = 8,
     };
 } // namespace rerun::components
 

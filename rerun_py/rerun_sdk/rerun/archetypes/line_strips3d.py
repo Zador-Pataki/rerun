@@ -124,6 +124,9 @@ class LineStrips3D(Archetype):
         labels: datatypes.Utf8ArrayLike | None = None,
         show_labels: datatypes.BoolLike | None = None,
         class_ids: datatypes.ClassIdArrayLike | None = None,
+        scalar_values: datatypes.Float64ArrayLike | None = None,
+        scalar_range: datatypes.Range1DLike | None = None,
+        colormap: components.ColormapLike | None = None,
     ) -> None:
         """
         Create a new instance of the LineStrips3D archetype.
@@ -147,13 +150,31 @@ class LineStrips3D(Archetype):
             Optional [`components.ClassId`][rerun.components.ClassId]s for the lines.
 
             The [`components.ClassId`][rerun.components.ClassId] provides colors and labels if not specified explicitly.
+        scalar_values:
+            Optional scalar values for the line strips.
+
+            If present, the spatial viewer maps these values to colors using `scalar_range` and `colormap`.
+        scalar_range:
+            Optional scalar value range used for colormapping `scalar_values`.
+
+            Values outside this range are clamped to the nearest end of the colormap.
+        colormap:
+            Optional colormap used for scalar-colored line strips.
 
         """
 
         # You can define your own __init__ function as a member of LineStrips3DExt in line_strips3d_ext.py
         with catch_and_log_exceptions(context=self.__class__.__name__):
             self.__attrs_init__(
-                strips=strips, radii=radii, colors=colors, labels=labels, show_labels=show_labels, class_ids=class_ids
+                strips=strips,
+                radii=radii,
+                colors=colors,
+                labels=labels,
+                show_labels=show_labels,
+                class_ids=class_ids,
+                scalar_values=scalar_values,
+                scalar_range=scalar_range,
+                colormap=colormap,
             )
             return
         self.__attrs_clear__()
@@ -167,6 +188,9 @@ class LineStrips3D(Archetype):
             labels=None,
             show_labels=None,
             class_ids=None,
+            scalar_values=None,
+            scalar_range=None,
+            colormap=None,
         )
 
     @classmethod
@@ -187,6 +211,9 @@ class LineStrips3D(Archetype):
         labels: datatypes.Utf8ArrayLike | None = None,
         show_labels: datatypes.BoolLike | None = None,
         class_ids: datatypes.ClassIdArrayLike | None = None,
+        scalar_values: datatypes.Float64ArrayLike | None = None,
+        scalar_range: datatypes.Range1DLike | None = None,
+        colormap: components.ColormapLike | None = None,
     ) -> LineStrips3D:
         """
         Update only some specific fields of a `LineStrips3D`.
@@ -212,6 +239,16 @@ class LineStrips3D(Archetype):
             Optional [`components.ClassId`][rerun.components.ClassId]s for the lines.
 
             The [`components.ClassId`][rerun.components.ClassId] provides colors and labels if not specified explicitly.
+        scalar_values:
+            Optional scalar values for the line strips.
+
+            If present, the spatial viewer maps these values to colors using `scalar_range` and `colormap`.
+        scalar_range:
+            Optional scalar value range used for colormapping `scalar_values`.
+
+            Values outside this range are clamped to the nearest end of the colormap.
+        colormap:
+            Optional colormap used for scalar-colored line strips.
 
         """
 
@@ -224,6 +261,9 @@ class LineStrips3D(Archetype):
                 "labels": labels,
                 "show_labels": show_labels,
                 "class_ids": class_ids,
+                "scalar_values": scalar_values,
+                "scalar_range": scalar_range,
+                "colormap": colormap,
             }
 
             if clear_unset:
@@ -250,6 +290,9 @@ class LineStrips3D(Archetype):
         labels: datatypes.Utf8ArrayLike | None = None,
         show_labels: datatypes.BoolArrayLike | None = None,
         class_ids: datatypes.ClassIdArrayLike | None = None,
+        scalar_values: datatypes.Float64ArrayLike | None = None,
+        scalar_range: datatypes.Range1DArrayLike | None = None,
+        colormap: components.ColormapArrayLike | None = None,
     ) -> ComponentColumnList:
         """
         Construct a new column-oriented component bundle.
@@ -278,6 +321,16 @@ class LineStrips3D(Archetype):
             Optional [`components.ClassId`][rerun.components.ClassId]s for the lines.
 
             The [`components.ClassId`][rerun.components.ClassId] provides colors and labels if not specified explicitly.
+        scalar_values:
+            Optional scalar values for the line strips.
+
+            If present, the spatial viewer maps these values to colors using `scalar_range` and `colormap`.
+        scalar_range:
+            Optional scalar value range used for colormapping `scalar_values`.
+
+            Values outside this range are clamped to the nearest end of the colormap.
+        colormap:
+            Optional colormap used for scalar-colored line strips.
 
         """
 
@@ -290,6 +343,9 @@ class LineStrips3D(Archetype):
                 labels=labels,
                 show_labels=show_labels,
                 class_ids=class_ids,
+                scalar_values=scalar_values,
+                scalar_range=scalar_range,
+                colormap=colormap,
             )
 
         batches = inst.as_component_batches(include_indicators=False)
@@ -303,6 +359,9 @@ class LineStrips3D(Archetype):
             "labels": labels,
             "show_labels": show_labels,
             "class_ids": class_ids,
+            "scalar_values": scalar_values,
+            "scalar_range": scalar_range,
+            "colormap": colormap,
         }
         columns = []
 
@@ -390,6 +449,37 @@ class LineStrips3D(Archetype):
     # Optional [`components.ClassId`][rerun.components.ClassId]s for the lines.
     #
     # The [`components.ClassId`][rerun.components.ClassId] provides colors and labels if not specified explicitly.
+    #
+    # (Docstring intentionally commented out to hide this field from the docs)
+
+    scalar_values: components.ScalarBatch | None = field(
+        metadata={"component": True},
+        default=None,
+        converter=components.ScalarBatch._converter,  # type: ignore[misc]
+    )
+    # Optional scalar values for the line strips.
+    #
+    # If present, the spatial viewer maps these values to colors using `scalar_range` and `colormap`.
+    #
+    # (Docstring intentionally commented out to hide this field from the docs)
+
+    scalar_range: components.ValueRangeBatch | None = field(
+        metadata={"component": True},
+        default=None,
+        converter=components.ValueRangeBatch._converter,  # type: ignore[misc]
+    )
+    # Optional scalar value range used for colormapping `scalar_values`.
+    #
+    # Values outside this range are clamped to the nearest end of the colormap.
+    #
+    # (Docstring intentionally commented out to hide this field from the docs)
+
+    colormap: components.ColormapBatch | None = field(
+        metadata={"component": True},
+        default=None,
+        converter=components.ColormapBatch._converter,  # type: ignore[misc]
+    )
+    # Optional colormap used for scalar-colored line strips.
     #
     # (Docstring intentionally commented out to hide this field from the docs)
 

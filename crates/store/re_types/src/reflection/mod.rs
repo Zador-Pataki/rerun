@@ -1794,7 +1794,19 @@ fn generate_archetype_reflection() -> ArchetypeReflectionMap {
                     "class_ids", display_name : "Class ids", component_name :
                     "rerun.components.ClassId".into(), docstring_md :
                     "Optional [`components.ClassId`](https://rerun.io/docs/reference/types/components/class_id)s for the lines.\n\nThe [`components.ClassId`](https://rerun.io/docs/reference/types/components/class_id) provides colors and labels if not specified explicitly.",
-                    is_required : false, },
+                    is_required : false, }, ArchetypeFieldReflection { name :
+                    "scalar_values", display_name : "Scalar values", component_name :
+                    "rerun.components.Scalar".into(), docstring_md :
+                    "Optional scalar values for the line strips.\n\nIf present, the spatial viewer maps these values to colors using `scalar_range` and `colormap`.",
+                    is_required : false, }, ArchetypeFieldReflection { name :
+                    "scalar_range", display_name : "Scalar range", component_name :
+                    "rerun.components.ValueRange".into(), docstring_md :
+                    "Optional scalar value range used for colormapping `scalar_values`.\n\nValues outside this range are clamped to the nearest end of the colormap.",
+                    is_required : false, }, ArchetypeFieldReflection { name : "colormap",
+                    display_name : "Colormap", component_name :
+                    "rerun.components.Colormap".into(), docstring_md :
+                    "Optional colormap used for scalar-colored line strips.", is_required
+                    : false, },
                 ],
             },
         ),
@@ -1870,6 +1882,14 @@ fn generate_archetype_reflection() -> ArchetypeReflectionMap {
                     component_name : "rerun.components.ImagePlaneDistance".into(),
                     docstring_md :
                     "The distance from the camera origin to the image plane when the projection is shown in a 3D viewer.\n\nThis is only used for visualization purposes, and does not affect the projection itself.",
+                    is_required : false, }, ArchetypeFieldReflection { name : "color",
+                    display_name : "Color", component_name : "rerun.components.Color"
+                    .into(), docstring_md :
+                    "Color used to draw the camera frustum in 3D views.\n\nThis is only used for visualization purposes, and does not affect the projection itself.",
+                    is_required : false, }, ArchetypeFieldReflection { name : "radius",
+                    display_name : "Radius", component_name : "rerun.components.Radius"
+                    .into(), docstring_md :
+                    "Radius used to draw the camera frustum lines in 3D views.\n\nThis is only used for visualization purposes, and does not affect the projection itself.",
                     is_required : false, },
                 ],
             },

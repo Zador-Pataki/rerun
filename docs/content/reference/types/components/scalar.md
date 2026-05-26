@@ -24,5 +24,6 @@ float64
 
 ## Used by
 
+* [`LineStrips3D`](../archetypes/line_strips3d.md)
 * [`Scalar`](../archetypes/scalar.md)
 * [`Scalars`](../archetypes/scalars.md)

@@ -54,6 +54,11 @@ This is a perceptually uniform colormap which is robust to color blindness.
 It is especially suited for visualizing signed values.
 It interpolates from cyan to blue to dark gray to brass to yellow.
 
+#### `RedToGreen` = 8
+A simple red to green gradient.
+
+This is useful for visualizing scalar scores where low values are bad and high values are good.
+
 
 ## Arrow datatype
 ```
@@ -69,3 +74,4 @@ uint8
 ## Used by
 
 * [`DepthImage`](../archetypes/depth_image.md)
+* [`LineStrips3D`](../archetypes/line_strips3d.md)

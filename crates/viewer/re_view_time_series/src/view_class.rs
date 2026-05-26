@@ -210,25 +210,43 @@ impl ViewClass for TimeSeriesView {
         // For all following lookups, checking indicators is enough, since we know that this is enough to infer visualizability here.
         let mut indicated_entities = IndicatedEntities::default();
 
-        for indicated in [
-            SeriesLineSystem::identifier(),
-            SeriesPointSystem::identifier(),
-        ]
-        .iter()
-        .filter_map(|&system_id| ctx.indicated_entities_per_visualizer.get(&system_id))
+        let series_line_system = SeriesLineSystem::identifier();
+        let series_point_system = SeriesPointSystem::identifier();
+
+        for indicated in [series_line_system, series_point_system]
+            .iter()
+            .filter_map(|system_id| ctx.indicated_entities_per_visualizer.get(system_id))
         {
             indicated_entities.0.extend(indicated.0.iter().cloned());
         }
 
         // Because SeriesLine is our fallback visualizer, also include any entities for which
         // SeriesLine is visualizable, even if not indicated.
+        //
+        // If the scalar lives on an entity that is explicitly indicated for another visualizer,
+        // treat it as visualizer-local data instead of time series data. For example, scalar-colored
+        // `LineStrips3D` use `Scalar` values for spatial coloring, but should not spawn a parallel
+        // time series view by default.
+        let non_time_series_indicated_entities: HashSet<_> = ctx
+            .indicated_entities_per_visualizer
+            .iter()
+            .filter(|(system_id, _)| {
+                **system_id != SeriesLineSystem::identifier()
+                    && **system_id != SeriesPointSystem::identifier()
+            })
+            .flat_map(|(_, entities)| entities.0.iter().cloned())
+            .collect();
+
         if let Some(maybe_visualizable) = ctx
             .maybe_visualizable_entities_per_visualizer
             .get(&SeriesLineSystem::identifier())
         {
-            indicated_entities
-                .0
-                .extend(maybe_visualizable.iter().cloned());
+            indicated_entities.0.extend(
+                maybe_visualizable
+                    .iter()
+                    .filter(|entity| !non_time_series_indicated_entities.contains(*entity))
+                    .cloned(),
+            );
         }
 
         // Ensure we don't modify this list anymore before we check the `suggested_filter`.

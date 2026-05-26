@@ -65,4 +65,14 @@ table Pinhole (
   ///
   /// This is only used for visualization purposes, and does not affect the projection itself.
   image_plane_distance: rerun.components.ImagePlaneDistance ("attr.rerun.component_optional", nullable, order: 4000);
+
+  /// Color used to draw the camera frustum in 3D views.
+  ///
+  /// This is only used for visualization purposes, and does not affect the projection itself.
+  color: rerun.components.Color ("attr.rerun.component_optional", nullable, order: 4100);
+
+  /// Radius used to draw the camera frustum lines in 3D views.
+  ///
+  /// This is only used for visualization purposes, and does not affect the projection itself.
+  radius: rerun.components.Radius ("attr.rerun.component_optional", nullable, order: 4200);
 }
