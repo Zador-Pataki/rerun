@@ -8,6 +8,7 @@ use re_data_ui::{
 };
 use re_entity_db::{EntityPath, InstancePath};
 use re_log_types::{ComponentPath, EntityPathFilter, EntityPathSubs, ResolvedEntityPathFilter};
+use re_types::{components, Component as _};
 use re_ui::{
     icons,
     list_item::{self, PropertyContent},
@@ -214,6 +215,7 @@ impl SelectionPanel {
                 }
 
                 list_existing_data_blueprints(ctx, viewport, ui, instance_path);
+                linked_instance_preview_ui(ctx, ui, ui_layout, &query, db, instance_path);
             }
 
             Item::Container(container_id) => {
@@ -275,6 +277,10 @@ impl SelectionPanel {
                             );
                         }
                     }
+                } else {
+                    let (query, db) =
+                        guess_query_and_db_for_selected_entity(ctx, &instance_path.entity_path);
+                    linked_instance_preview_ui(ctx, ui, ui_layout, &query, db, instance_path);
                 }
             }
 
@@ -650,6 +656,61 @@ fn data_section_ui(item: &Item) -> Option<Box<dyn DataUi>> {
         | Item::RedapEntry(_)
         | Item::RedapServer(_) => None,
     }
+}
+
+const INSTANCE_PREVIEW_LABEL_PREFIX: &str = "rerun-preview:";
+
+fn linked_instance_preview_ui(
+    ctx: &ViewerContext<'_>,
+    ui: &mut egui::Ui,
+    ui_layout: UiLayout,
+    query: &re_chunk_store::LatestAtQuery,
+    db: &re_entity_db::EntityDb,
+    instance_path: &InstancePath,
+) {
+    let Some(preview_path) = linked_instance_preview_path(query, db, instance_path) else {
+        return;
+    };
+
+    ui.section_collapsing_header("Preview")
+        .default_open(true)
+        .show(ui, |ui| {
+            ui.list_item_flat_noninteractive(PropertyContent::new("Preview entity").value_fn(
+                |ui, _| {
+                    item_ui::entity_path_parts_buttons(ctx, query, db, ui, None, &preview_path);
+                },
+            ));
+            InstancePath::entity_all(preview_path).data_ui(ctx, ui, ui_layout, query, db);
+        });
+}
+
+fn linked_instance_preview_path(
+    query: &re_chunk_store::LatestAtQuery,
+    db: &re_entity_db::EntityDb,
+    instance_path: &InstancePath,
+) -> Option<EntityPath> {
+    if !instance_path.instance.is_specific() {
+        return None;
+    }
+
+    let instance_index = usize::try_from(instance_path.instance.get()).ok()?;
+    let mut results = db.storage_engine().cache().latest_at(
+        query,
+        &instance_path.entity_path,
+        [components::Text::name()],
+    );
+    let text_unit = results.components.remove(&components::Text::name())?;
+    let text = text_unit
+        .component_instance::<components::Text>(instance_index)?
+        .ok()?;
+    let preview_path = text
+        .0
+        .as_str()
+        .strip_prefix(INSTANCE_PREVIEW_LABEL_PREFIX)?;
+    if preview_path.is_empty() {
+        return None;
+    }
+    Some(EntityPath::parse_forgiving(preview_path))
 }
 
 fn view_button(
