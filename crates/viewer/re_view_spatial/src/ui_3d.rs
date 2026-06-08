@@ -4,6 +4,7 @@ use web_time::Instant;
 
 use re_log_types::EntityPath;
 use re_math::BoundingBox;
+use re_renderer::view_builder::OrthographicCameraMode;
 use re_renderer::{
     view_builder::{Projection, TargetConfiguration, ViewBuilder},
     LineDrawableBuilder, Size,
@@ -40,6 +41,16 @@ use crate::{
 use super::eye::{Eye, ViewEye};
 
 // ---
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProjectionMode {
+    Perspective,
+    Orthographic,
+}
+impl Default for ProjectionMode {
+    fn default() -> Self {
+        ProjectionMode::Perspective
+    }
+}
 
 #[derive(Clone)]
 pub struct View3DState {
@@ -65,11 +76,17 @@ pub struct View3DState {
 
     // options:
     spin: bool,
+    pub spin_speed: f32,
     pub show_axes: bool,
     pub show_bbox: bool,
     pub show_smoothed_bbox: bool,
 
     eye_interact_fade_in: bool,
+    pub projection: ProjectionMode,
+    pub ortho_camera_mode: OrthographicCameraMode,
+    pub ortho_vertical_world_size: f32,
+    pub ortho_near_plane_distance: f32,
+    pub ortho_far_plane_distance: f32,
     eye_interact_fade_change_time: f64,
 }
 
@@ -83,10 +100,16 @@ impl Default for View3DState {
             eye_interpolation: Default::default(),
             scene_view_coordinates: None,
             spin: false,
+            spin_speed: 150.0,
             show_axes: false,
             show_bbox: false,
             show_smoothed_bbox: false,
             eye_interact_fade_in: false,
+            projection: ProjectionMode::Perspective,
+            ortho_camera_mode: OrthographicCameraMode::NearPlaneCenter,
+            ortho_vertical_world_size: 24000.0,
+            ortho_near_plane_distance: 0.0,
+            ortho_far_plane_distance: 30000.0,
             eye_interact_fade_change_time: f64::NEG_INFINITY,
         }
     }
@@ -97,6 +120,28 @@ fn ease_out(t: f32) -> f32 {
 }
 
 impl View3DState {
+    pub fn fly_to_pose(&mut self, target: Eye, seconds: f32) {
+        // cancel any spinning
+        self.spin = false;
+
+        // on the very first call, just snap:
+        if self.view_eye.is_none() {
+            let mut ve = ViewEye::new_orbital(Vec3::ZERO, 1.0, Quat::IDENTITY, Vec3::Z);
+            ve.copy_from_eye(&target);
+            self.view_eye = Some(ve);
+            return;
+        }
+
+        // otherwise interpolate
+        let start = *self.view_eye.as_ref().unwrap();
+        self.eye_interpolation = Some(EyeInterpolation {
+            elapsed_time: 0.0,
+            target_time: seconds.max(0.01),
+            start,
+            target_view_eye: None,
+            target_eye: Some(target),
+        });
+    }
     pub fn reset_camera(
         &mut self,
         scene_bbox: &SceneBoundingBoxes,
@@ -158,7 +203,7 @@ impl View3DState {
 
         if self.spin {
             view_eye.rotate(egui::vec2(
-                -response.ctx.input(|i| i.stable_dt).at_most(0.1) * 150.0,
+                -response.ctx.input(|i| i.stable_dt).at_most(0.1) * self.spin_speed,
                 0.0,
             ));
             response.ctx.request_repaint();
@@ -337,6 +382,35 @@ impl View3DState {
             self.last_eye_interaction = Some(Instant::now());
         }
     }
+    pub fn fly_to_eye(&mut self, target: Eye, seconds: f32) {
+        // stop any current spin
+        self.spin = false;
+
+        // ── first frame: jump straight to target ────────────────────
+        if self.view_eye.is_none() {
+            // create a throw-away orbital eye (values won’t matter)
+            let mut ve = ViewEye::new_orbital(
+                Vec3::ZERO,     // dummy center
+                1.0,            // dummy radius
+                Quat::IDENTITY, // dummy rot
+                Vec3::Z,        // dummy up
+            );
+            ve.copy_from_eye(&target); // overwrite with target pose
+            self.view_eye = Some(ve);
+            return;
+        }
+
+        // ── smooth interpolation on subsequent calls ────────────────
+        let start_view_eye = *self.view_eye.as_ref().unwrap();
+
+        self.eye_interpolation = Some(EyeInterpolation {
+            elapsed_time: 0.0,
+            target_time: seconds.at_least(0.01),
+            start: start_view_eye,
+            target_view_eye: None,
+            target_eye: Some(target),
+        });
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -471,17 +545,26 @@ impl SpatialView3D {
         if resolution_in_pixel[0] == 0 || resolution_in_pixel[1] == 0 {
             return Ok(());
         }
-
+        let bounding_box = &state.bounding_boxes.current;
+        let vertical_world_size = bounding_box.max.y - bounding_box.min.y;
         let target_config = TargetConfiguration {
             name: query.space_origin.to_string().into(),
 
             resolution_in_pixel,
 
             view_from_world: eye.world_from_rub_view.inverse(),
-            projection_from_view: Projection::Perspective {
-                vertical_fov: eye.fov_y.unwrap_or(Eye::DEFAULT_FOV_Y),
-                near_plane_distance: eye.near(),
-                aspect_ratio: resolution_in_pixel[0] as f32 / resolution_in_pixel[1] as f32,
+            projection_from_view: match state.state_3d.projection {
+                ProjectionMode::Perspective => Projection::Perspective {
+                    vertical_fov: eye.fov_y.unwrap_or(Eye::DEFAULT_FOV_Y),
+                    near_plane_distance: eye.near(),
+                    aspect_ratio: resolution_in_pixel[0] as f32 / resolution_in_pixel[1] as f32,
+                },
+                ProjectionMode::Orthographic => Projection::Orthographic {
+                    camera_mode: state.state_3d.ortho_camera_mode,
+                    vertical_world_size: state.state_3d.ortho_vertical_world_size,
+                    near_plane_distance: state.state_3d.ortho_near_plane_distance,
+                    far_plane_distance: state.state_3d.ortho_far_plane_distance,
+                },
             },
             viewport_transformation: re_renderer::RectTransform::IDENTITY,
 

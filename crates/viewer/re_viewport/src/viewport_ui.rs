@@ -592,7 +592,11 @@ impl<'a> egui_tiles::Behavior<ViewId> for TilesDelegate<'a, '_> {
 
     /// The height of the bar holding tab titles.
     fn tab_bar_height(&self, _style: &egui::Style) -> f32 {
-        re_ui::DesignTokens::title_bar_height()
+        if self.ctx.app_options().hide_view_headers {
+            0.0                    // ← NEW: no header when toggle is on
+        } else {
+            re_ui::DesignTokens::title_bar_height()
+        }
     }
 
     /// What are the rules for simplifying the tree?

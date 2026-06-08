@@ -42,4 +42,17 @@ table LineStrips3D (
   ///
   /// The [components.ClassId] provides colors and labels if not specified explicitly.
   class_ids: [rerun.components.ClassId] ("attr.rerun.component_optional", nullable, order: 3200);
+
+  /// Optional scalar values for the line strips.
+  ///
+  /// If present, the spatial viewer maps these values to colors using `scalar_range` and `colormap`.
+  scalar_values: [rerun.components.Scalar] ("attr.rerun.component_optional", nullable, order: 3300);
+
+  /// Optional scalar value range used for colormapping `scalar_values`.
+  ///
+  /// Values outside this range are clamped to the nearest end of the colormap.
+  scalar_range: rerun.components.ValueRange ("attr.rerun.component_optional", nullable, order: 3310);
+
+  /// Optional colormap used for scalar-colored line strips.
+  colormap: rerun.components.Colormap ("attr.rerun.component_optional", nullable, order: 3320);
 }

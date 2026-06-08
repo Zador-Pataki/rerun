@@ -20,3 +20,13 @@ mod python_bridge;
 mod utils;
 mod video;
 mod viewer;
+
+
+use pyo3::prelude::*;
+use pyo3::Bound;
+
+#[pymodule]
+fn rerun_sdk(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    viewer::register(_py, m)?;
+    Ok(())
+}

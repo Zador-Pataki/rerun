@@ -141,6 +141,19 @@ def test_line_segments3d(data: LineStrip3DArrayLike) -> None:
     )
 
 
+def test_line_strips3d_scalar_colormap() -> None:
+    arch = rr.LineStrips3D(
+        [[[0, 0, 0], [1, 0, 0]], [[0, 1, 0], [1, 1, 0]]],
+        scalar_values=[0.0, 50.0],
+        scalar_range=[0.0, 50.0],
+        colormap="red_green",
+    )
+
+    assert arch.scalar_values == rr.components.ScalarBatch([0.0, 50.0])
+    assert arch.scalar_range == rr.components.ValueRangeBatch([0.0, 50.0])
+    assert arch.colormap == rr.components.ColormapBatch([rr.components.Colormap.RedToGreen])
+
+
 def test_single_line_strip2d() -> None:
     # Regression test for #3643
     # Single linestrip can be passed and is not interpreted as batch of zero sized line strips.

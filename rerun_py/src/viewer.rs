@@ -1,20 +1,63 @@
 #![expect(clippy::needless_pass_by_value)] // A lot of arguments to #[pyfunction] need to be by value
 
 use arrow::array::RecordBatch;
-use pyo3::{prelude::*, Bound, PyResult};
+use pyo3::{prelude::*, PyResult};
 
 use re_grpc_client::message_proxy::write_table::viewer_client;
 use re_log_encoding::codec::wire::encoder::Encode as _;
 use re_protos::sdk_comms::v1alpha1::message_proxy_service_client::MessageProxyServiceClient;
 
+use re_viewer::external::re_types::external::glam::{Quat, Vec3};
+
+use re_viewer::with_view3d_mut;
+use re_view_spatial::{eye::Eye, ui_3d::View3DState};
+use re_math::IsoTransform; // only if you want to build the IsoTransform by hand
+
 use crate::{catalog::to_py_err, utils::wait_for_future};
 
-/// Register the `rerun.catalog` module.
+
+
+#[pyfunction]
+#[pyo3(signature = (tx, ty, tz, qx, qy, qz, qw, seconds = 1.0))]
+pub fn fly_to_pose(
+    tx: f32,
+    ty: f32,
+    tz: f32,
+    qx: f32,
+    qy: f32,
+    qz: f32,
+    qw: f32,
+    seconds: f32,
+) {
+    with_view3d_mut(|state: &mut View3DState| {
+        // The easiest way is to use the built-in constructor:
+        let target = Eye::from_pos_and_rot(
+            Vec3::new(tx, ty, tz),
+            Quat::from_xyzw(qx, qy, qz, qw),
+        );
+        state.fly_to_eye(target, seconds.max(0.01));
+
+        // If you ever want to roll your own camera‐to‐world transform:
+        //
+        // let iso = IsoTransform::from_rotation_translation(
+        //     Quat::from_xyzw(qx, qy, qz, qw),
+        //     Vec3::new(tx, ty, tz),
+        // );
+        // let target = Eye {
+        //     world_from_rub_view: iso,
+        //     fov_y: Some(Eye::DEFAULT_FOV_Y),
+        //     ..Default::default_impl()
+        // };
+        // state.fly_to_eye(target, seconds.max(0.01));
+    });
+}
+
 pub(crate) fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyViewerClient>()?;
-
+    m.add_function(wrap_pyfunction!(fly_to_pose, m)?)?;
     Ok(())
 }
+
 
 /// A connection to an instance of a Rerun viewer.
 #[pyclass(name = "ViewerClient")]

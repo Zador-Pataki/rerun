@@ -378,11 +378,17 @@ fn create_view_builder(
                 0.0,
             )),
             projection_from_view: re_renderer::view_builder::Projection::Orthographic {
-                camera_mode:
-                    re_renderer::view_builder::OrthographicCameraMode::TopLeftCornerAndExtendZ,
+                camera_mode: re_renderer::view_builder::OrthographicCameraMode::TopLeftCornerAndExtendZ,
                 vertical_world_size: view_rect.height(),
                 far_plane_distance: 100.0,
+                near_plane_distance: 0.01,
             },
+            // projection_from_view: re_renderer::view_builder::Projection::Orthographic {
+            //     camera_mode:
+            //         re_renderer::view_builder::OrthographicCameraMode::TopLeftCornerAndExtendZ,
+            //     vertical_world_size: view_rect.height(),
+            //     far_plane_distance: 100.0,
+            // },
             // No transform after view/projection needed.
             viewport_transformation: re_renderer::RectTransform::IDENTITY,
             pixels_per_point,

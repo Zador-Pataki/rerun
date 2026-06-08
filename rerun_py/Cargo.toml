@@ -96,6 +96,13 @@ tonic = { workspace = true, default-features = false, features = ["transport"] }
 url.workspace = true
 thiserror.workspace = true
 
+# ───────── camera-flight helper deps ─────────
+glam = "0.25"                        # Vec3 / Quat / Affine3A
+# rerun.workspace = true
+re_viewer = { path = "../crates/viewer/re_viewer", default-features = false }
+re_view_spatial = { path = "../crates/viewer/re_view_spatial" }
+re_math      = { workspace = true }
+
 
 [build-dependencies]
 re_build_tools.workspace = true

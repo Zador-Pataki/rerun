@@ -5,9 +5,13 @@
 // TODO(#6330): remove unwrap()
 #![allow(clippy::unwrap_used)]
 
+pub mod api;
 mod contexts;
-mod eye;
+pub mod eye;
 mod heuristics;
+pub mod ui_3d;
+pub use eye::Eye;
+pub use ui_3d::View3DState;
 mod max_image_dimension_subscriber;
 mod mesh_cache;
 mod mesh_loader;
@@ -22,7 +26,7 @@ mod space_camera_3d;
 mod spatial_topology;
 mod ui;
 mod ui_2d;
-mod ui_3d;
+// mod ui_3d;
 mod view_2d;
 mod view_2d_properties;
 mod view_3d;

@@ -2,7 +2,11 @@
 //!
 //! This crate contains all the GUI code for the Rerun Viewer,
 //! including all 2D and 3D visualization code.
-
+mod api;
+// pub use api::with_viewer_mut;
+pub use api::with_view3d_mut;
+pub use re_view_spatial::eye::Eye;
+pub use re_view_spatial::ui_3d::View3DState;
 mod app;
 mod app_blueprint;
 mod app_state;
@@ -56,6 +60,8 @@ pub mod external {
 pub mod native;
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::{run_native_app, run_native_viewer_with_messages};
+
+
 
 // ----------------------------------------------------------------------------
 // When compiling for web:

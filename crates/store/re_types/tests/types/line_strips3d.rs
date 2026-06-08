@@ -33,6 +33,18 @@ fn roundtrip() {
         ]
         .serialized()
         .map(|batch| batch.with_descriptor_override(LineStrips3D::descriptor_class_ids())),
+        scalar_values: vec![
+            components::Scalar(0.0.into()),  //
+            components::Scalar(50.0.into()), //
+        ]
+        .serialized()
+        .map(|batch| batch.with_descriptor_override(LineStrips3D::descriptor_scalar_values())),
+        scalar_range: components::ValueRange::new(0.0, 50.0)
+            .serialized()
+            .map(|batch| batch.with_descriptor_override(LineStrips3D::descriptor_scalar_range())),
+        colormap: components::Colormap::RedToGreen
+            .serialized()
+            .map(|batch| batch.with_descriptor_override(LineStrips3D::descriptor_colormap())),
         show_labels: components::ShowLabels(true.into())
             .serialized()
             .map(|batch| batch.with_descriptor_override(LineStrips3D::descriptor_show_labels())),
@@ -48,6 +60,9 @@ fn roundtrip() {
         .with_colors([0xAA0000CC, 0x00BB00DD])
         .with_labels(["hello", "friend"])
         .with_class_ids([126, 127])
+        .with_scalar_values([0.0, 50.0])
+        .with_scalar_range(components::ValueRange::new(0.0, 50.0))
+        .with_colormap(components::Colormap::RedToGreen)
         .with_show_labels(true);
     similar_asserts::assert_eq!(expected, arch);
 

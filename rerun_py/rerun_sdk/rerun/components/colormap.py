@@ -89,6 +89,13 @@ class Colormap(Enum):
     It interpolates from cyan to blue to dark gray to brass to yellow.
     """
 
+    RedToGreen = 8
+    """
+    A simple red to green gradient.
+
+    This is useful for visualizing scalar scores where low values are bad and high values are good.
+    """
+
     @classmethod
     def auto(cls, val: str | int | Colormap) -> Colormap:
         """Best-effort converter, including a case-insensitive string matcher."""
@@ -99,7 +106,9 @@ class Colormap(Enum):
         try:
             return cls[val]
         except KeyError:
-            val_lower = val.lower()
+            val_lower = val.lower().replace("_", "").replace("-", "")
+            if val_lower == "redgreen":
+                return cls.RedToGreen
             for variant in cls:
                 if variant.name.lower() == val_lower:
                     return variant
@@ -118,6 +127,7 @@ ColormapLike = Union[
         "Inferno",
         "Magma",
         "Plasma",
+        "RedToGreen",
         "Turbo",
         "Viridis",
         "cyantoyellow",
@@ -125,6 +135,10 @@ ColormapLike = Union[
         "inferno",
         "magma",
         "plasma",
+        "redgreen",
+        "redtogreen",
+        "red_green",
+        "red-to-green",
         "turbo",
         "viridis",
     ],

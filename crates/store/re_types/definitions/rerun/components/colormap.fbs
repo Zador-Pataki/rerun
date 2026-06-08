@@ -52,4 +52,9 @@ enum Colormap: ubyte {
     /// It is especially suited for visualizing signed values.
     /// It interpolates from cyan to blue to dark gray to brass to yellow.
     CyanToYellow,
+
+    /// A simple red to green gradient.
+    ///
+    /// This is useful for visualizing scalar scores where low values are bad and high values are good.
+    RedToGreen,
 }

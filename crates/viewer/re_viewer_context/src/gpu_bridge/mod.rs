@@ -145,7 +145,8 @@ pub fn render_image(
         projection_from_view: re_renderer::view_builder::Projection::Orthographic {
             camera_mode: re_renderer::view_builder::OrthographicCameraMode::TopLeftCornerAndExtendZ,
             vertical_world_size: space_from_pixel * resolution_in_pixel[1] as f32,
-            far_plane_distance: 1000.0,
+            near_plane_distance: 0.01, // or another sensible small value
+            far_plane_distance: 100.0,
         },
         viewport_transformation: re_renderer::RectTransform::IDENTITY,
         pixels_per_point,

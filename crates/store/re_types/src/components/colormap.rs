@@ -71,6 +71,11 @@ pub enum Colormap {
     /// It is especially suited for visualizing signed values.
     /// It interpolates from cyan to blue to dark gray to brass to yellow.
     CyanToYellow = 7,
+
+    /// A simple red to green gradient.
+    ///
+    /// This is useful for visualizing scalar scores where low values are bad and high values are good.
+    RedToGreen = 8,
 }
 
 impl ::re_types_core::Component for Colormap {
@@ -152,6 +157,7 @@ impl ::re_types_core::Loggable for Colormap {
                 Some(5) => Ok(Some(Self::Turbo)),
                 Some(6) => Ok(Some(Self::Viridis)),
                 Some(7) => Ok(Some(Self::CyanToYellow)),
+                Some(8) => Ok(Some(Self::RedToGreen)),
                 None => Ok(None),
                 Some(invalid) => Err(DeserializationError::missing_union_arm(
                     Self::arrow_datatype(),
@@ -174,6 +180,7 @@ impl std::fmt::Display for Colormap {
             Self::Turbo => write!(f, "Turbo"),
             Self::Viridis => write!(f, "Viridis"),
             Self::CyanToYellow => write!(f, "CyanToYellow"),
+            Self::RedToGreen => write!(f, "RedToGreen"),
         }
     }
 }
@@ -189,6 +196,7 @@ impl ::re_types_core::reflection::Enum for Colormap {
             Self::Turbo,
             Self::Viridis,
             Self::CyanToYellow,
+            Self::RedToGreen,
         ]
     }
 
@@ -215,6 +223,9 @@ impl ::re_types_core::reflection::Enum for Colormap {
             }
             Self::CyanToYellow => {
                 "Rasmusgo's Cyan to Yellow colormap\n\nThis is a perceptually uniform colormap which is robust to color blindness.\nIt is especially suited for visualizing signed values.\nIt interpolates from cyan to blue to dark gray to brass to yellow."
+            }
+            Self::RedToGreen => {
+                "A simple red to green gradient.\n\nThis is useful for visualizing scalar scores where low values are bad and high values are good."
             }
         }
     }

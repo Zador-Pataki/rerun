@@ -1,5 +1,4 @@
 use egui::{epaint::util::OrderedFloat, text::TextWrapping, NumExt as _, WidgetText};
-
 use re_format::format_f32;
 use re_math::BoundingBox;
 use re_types::{
@@ -38,7 +37,7 @@ impl From<AutoSizeUnit> for WidgetText {
 }
 
 /// TODO(andreas): Should turn this "inside out" - [`SpatialViewState`] should be used by [`View3DState`], not the other way round.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SpatialViewState {
     pub bounding_boxes: SceneBoundingBoxes,
 
@@ -54,6 +53,7 @@ pub struct SpatialViewState {
     pub pinhole_at_origin: Option<Pinhole>,
 
     pub visual_bounds_2d: Option<VisualBounds2D>,
+    // state_3d: View3DState::default(),
 }
 
 impl ViewState for SpatialViewState {
@@ -137,6 +137,14 @@ impl SpatialViewState {
             {
                 self.state_3d.set_spin(spin);
             }
+            ui.add_enabled_ui(spin, |ui| {
+                ui.add(
+                    egui::DragValue::new(&mut self.state_3d.spin_speed)
+                        .speed(1.0)
+                        .range(-500.0..=500.0) // new API; replaces clamp_range
+                        .suffix(" °/s"),
+                );
+            });
         }
 
         if let Some(eye) = &mut self.state_3d.view_eye {
@@ -146,6 +154,67 @@ impl SpatialViewState {
                 ui.selectable_value(&mut mode, EyeMode::Orbital, "Orbital");
                 eye.set_mode(mode);
             });
+            ui.horizontal(|ui| {
+                ui.label("Projection:");
+                ui.selectable_value(
+                    &mut self.state_3d.projection,
+                    super::ui_3d::ProjectionMode::Perspective,
+                    "Perspective",
+                );
+                ui.selectable_value(
+                    &mut self.state_3d.projection,
+                    super::ui_3d::ProjectionMode::Orthographic,
+                    "Orthographic",
+                );
+            });
+        }
+        if self.state_3d.projection == super::ui_3d::ProjectionMode::Orthographic {
+            ui.horizontal(|ui| {
+                ui.label("Near / Far / Scale:");
+
+                ui.add(
+                    egui::DragValue::new(&mut self.state_3d.ortho_near_plane_distance)
+                        .range(-10000000.0..=10000000.0)
+                        .speed(0.1)
+                        .prefix("Near "),
+                );
+                ui.add(
+                    egui::DragValue::new(&mut self.state_3d.ortho_far_plane_distance)
+                        .range(-10000000.0..=10000000.0)
+                        .speed(1.0)
+                        .prefix("Far "),
+                );
+                ui.add(
+                    egui::DragValue::new(&mut self.state_3d.ortho_vertical_world_size)
+                        .range(0.001..=100_000.0)
+                        .speed(100.0)
+                        .prefix("Scale "),
+                );
+            });
+        }
+    }
+}
+
+impl Default for SpatialViewState {
+    fn default() -> Self {
+        // Existing simple defaults:
+        let bounding_boxes = SceneBoundingBoxes::default();
+        let num_non_segmentation_images_last_frame = 0;
+        let previous_picking_result = None;
+        let pinhole_at_origin = None;
+        let visual_bounds_2d = None;
+
+        // --- create & register the first 3-D state -----------------
+        let mut state_3d = View3DState::default();
+        crate::api::_register_view3d_state(&mut state_3d);
+
+        Self {
+            bounding_boxes,
+            num_non_segmentation_images_last_frame,
+            previous_picking_result,
+            state_3d,
+            pinhole_at_origin,
+            visual_bounds_2d,
         }
     }
 }

@@ -64,6 +64,9 @@ pub struct AppOptions {
     /// see [`AppOptions::cache_subdirectory`].
     #[cfg(not(target_arch = "wasm32"))]
     pub cache_directory: Option<std::path::PathBuf>,
+
+    /// Hide the gray title-bars on every view pane.
+    pub hide_view_headers: bool,
 }
 
 impl Default for AppOptions {
@@ -90,6 +93,7 @@ impl Default for AppOptions {
 
             mapbox_access_token: String::new(),
 
+            hide_view_headers: false,
             #[cfg(not(target_arch = "wasm32"))]
             cache_directory: Self::default_cache_directory(),
         }

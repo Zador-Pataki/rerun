@@ -1,6 +1,7 @@
 //! The main Rerun drop-down menu found in the top panel.
 
 use egui::NumExt as _;
+use re_ui::UiExt as _;
 
 use re_ui::UICommand;
 use re_viewer_context::StoreContext;
@@ -41,6 +42,11 @@ impl App {
         ui.menu_button("About", |ui| self.about_rerun_ui(ui, render_state));
 
         ui.add_space(SPACING);
+
+        ui.re_checkbox(
+            &mut self.state.app_options.hide_view_headers,
+            "Hide view headers",
+        );
 
         UICommand::Undo.menu_button_ui(ui, &self.command_sender); // TODO(emilk): only enabled if there is something to undo
         UICommand::Redo.menu_button_ui(ui, &self.command_sender); // TODO(emilk): only enabled if there is something to redo

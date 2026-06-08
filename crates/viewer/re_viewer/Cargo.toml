@@ -44,6 +44,8 @@ map_view = ["dep:re_view_map"]
 
 
 [dependencies]
+once_cell.workspace = true
+
 # Internal:
 re_blueprint_tree.workspace = true
 re_build_info.workspace = true
@@ -158,3 +160,5 @@ web-sys = { workspace = true, features = [
 
 [build-dependencies]
 re_build_tools.workspace = true
+
+

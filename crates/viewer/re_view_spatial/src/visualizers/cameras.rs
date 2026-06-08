@@ -21,6 +21,8 @@ use crate::{
 };
 
 const CAMERA_COLOR: re_renderer::Color32 = re_renderer::Color32::from_rgb(150, 150, 150);
+const CAMERA_COLOR_2: re_renderer::Color32 = re_renderer::Color32::from_rgb(255, 0, 0);
+const CAMERA_COLOR_3: re_renderer::Color32 = re_renderer::Color32::from_rgb(0, 0, 255);
 
 pub struct CamerasVisualizer {
     pub data: SpatialViewVisualizerData,
@@ -48,6 +50,8 @@ struct CameraComponentDataWithFallbacks {
     pinhole: crate::Pinhole,
     camera_xyz: components::ViewCoordinates,
     image_plane_distance: f32,
+    color: Option<re_renderer::Color32>,
+    radius: Option<re_renderer::Size>,
 }
 
 impl CamerasVisualizer {
@@ -165,8 +169,13 @@ impl CamerasVisualizer {
                 LineStripFlags::empty(),
             ),
         ];
+        let mode = (h as u32) % 3;
 
-        let radius = re_renderer::Size::new_ui_points(1.0);
+        let (radius, color) = match mode {
+            1 => (re_renderer::Size::new_ui_points(4.0), CAMERA_COLOR_2), // red
+            2 => (re_renderer::Size::new_ui_points(4.0), CAMERA_COLOR_3), // blue
+            _ => (re_renderer::Size::new_ui_points(1.0), CAMERA_COLOR),   // no highlight
+        };
         let instance_path_for_picking =
             re_entity_db::InstancePathHash::instance(ent_path, instance);
         let instance_layer_id =
@@ -187,7 +196,7 @@ impl CamerasVisualizer {
             let lines = batch
                 .add_strip(strip.into_iter())
                 .radius(radius)
-                .color(CAMERA_COLOR)
+                .color(color)
                 .flags(flags)
                 .picking_instance_id(instance_layer_id.instance);
 
@@ -266,14 +275,28 @@ impl VisualizerSystem for CamerasVisualizer {
             let image_plane_distance = query_results
                 .get_mono::<components::ImagePlaneDistance>()
                 .unwrap_or_else(|| self.fallback_for(&query_ctx));
-
+            let color = query_results.get_mono::<components::Color>().map(|c| {
+                let rgba = c.0;
+                let r = ((rgba.0 >> 24) & 0xFF) as u8;
+                let g = ((rgba.0 >> 16) & 0xFF) as u8;
+                let b = ((rgba.0 >> 8) & 0xFF) as u8;
+                let a = (rgba.0 & 0xFF) as u8;
+                re_renderer::Color32::from_rgba_premultiplied(r, g, b, a)
+            });
+            let radius = query_results
+                .get_mono::<components::Radius>()
+                .map(|r| re_renderer::Size::new_scene_units(r.0.into()));
             let component_data = CameraComponentDataWithFallbacks {
                 pinhole: crate::Pinhole {
                     image_from_camera: pinhole_projection.0.into(),
                     resolution: resolution.into(),
+                    color: color.map(|c| [c.r(), c.g(), c.b()]),
+                    radius,
                 },
                 camera_xyz,
                 image_plane_distance: image_plane_distance.into(),
+                color,
+                radius,
             };
 
             let entity_highlight = query

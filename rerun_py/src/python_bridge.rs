@@ -5,7 +5,7 @@
 
 use std::io::IsTerminal as _;
 use std::{borrow::Borrow as _, collections::HashMap};
-
+use crate::viewer::fly_to_pose;
 use arrow::array::RecordBatch as ArrowRecordBatch;
 use itertools::Itertools as _;
 use pyo3::{
@@ -189,6 +189,8 @@ fn rerun_bindings(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(new_property_entity_path, m)?)?;
     m.add_function(wrap_pyfunction!(send_recording_name, m)?)?;
     m.add_function(wrap_pyfunction!(send_recording_start_time_nanos, m)?)?;
+
+    m.add_function(wrap_pyfunction!(fly_to_pose, m)?)?;
 
     use crate::video::asset_video_read_frame_timestamps_nanos;
     m.add_function(wrap_pyfunction!(

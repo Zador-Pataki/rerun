@@ -61,7 +61,6 @@ unsafe-fixes = true
 # Allow preview lints to be enabled (like `PLW1514` to force `encoding` on open).
 preview = true
 # But we only want to opt-in to certain preview rules!
-lint.explicit-preview-rules = true
 
 extend-exclude = [
   # Automatically generated test artifacts
@@ -158,37 +157,24 @@ lint.unfixable = [
   "PLW1514", # Automatic fix for `encoding` doesn't do what we want - it queries the locale for the preferred encoding which is exactly what we want to avoid.
 ]
 
-[tool.ruff.lint.per-file-ignores]
-"docs/snippets/all/*" = [
-  # Missing required import: `from __future__ import annotations`
-  "I002",
-]
 "crates/viewer/re_viewer/data/quick_start_guides/*" = [
   # Missing required import: `from __future__ import annotations`
   "I002",
 ]
 "__init__.py" = ["F401", "F403"]
-
-[tool.ruff.lint.isort]
-required-imports = ["from __future__ import annotations"]
-combine-as-imports = true                                 # needed so keep rerun_sdk/__init__.py clean
+                           # needed so keep rerun_sdk/__init__.py clean
 
 [tool.maturin]
-# We use a python package from inside the rerun_sdk folder to avoid conflicting
-# with the other `rerun` pypi package. The rerun_sdk.pth adds this to the pythonpath
-# which then allows `import rerun` to work as expected.
-# See https://github.com/rerun-io/rerun/pull/1085 for more details
-# Even though both `rerun` and `rerun.exe` are here, only one will be included since
-# they both should not be fetched in CI when running the build.
-# Files missing from this list is not a packaging failure.
+
 include = [
   "rerun_sdk.pth",
   "rerun_sdk/rerun_cli/rerun",
   "rerun_sdk/rerun_cli/rerun.exe",
+  "rerun_sdk/rerun_bindings",
 ]
 locked = true
 name = "rerun_bindings"
-python-packages = ["rerun_sdk/rerun", "rerun_sdk/rerun_cli"]
+python-packages = ["rerun_sdk/rerun", "rerun_sdk/rerun_cli", "rerun_sdk/rerun_bindings"]
 
 # Setting this to 1 causes lets the build.rs script know we are building a wheel,
 # which will cause it to check for the existence of the `rerun` binary.

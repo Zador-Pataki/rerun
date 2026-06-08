@@ -87,6 +87,7 @@ pub enum OrthographicCameraMode {
     ///
     /// Uses `RDF` (X=Right, Y=Down, Z=Forward)
     TopLeftCornerAndExtendZ,
+    FixedVertical,
 }
 
 /// How we project from 3D to 2D.
@@ -116,6 +117,7 @@ pub enum Projection {
         vertical_world_size: f32,
 
         /// Distance of the far plane to the camera.
+        near_plane_distance: f32,
         far_plane_distance: f32,
     },
 }
@@ -140,6 +142,7 @@ impl Projection {
             Self::Orthographic {
                 camera_mode,
                 vertical_world_size,
+                near_plane_distance,
                 far_plane_distance,
             } => {
                 let aspect_ratio = resolution_in_pixel[0] as f32 / resolution_in_pixel[1] as f32;
@@ -162,6 +165,14 @@ impl Projection {
                         0.0,
                         far_plane_distance,
                         -far_plane_distance,
+                    ),
+                    OrthographicCameraMode::FixedVertical => glam::Mat4::orthographic_rh(
+                        -0.5 * horizontal_world_size,
+                        0.5 * horizontal_world_size,
+                        -0.5 * vertical_world_size,
+                        0.5 * vertical_world_size,
+                        near_plane_distance,
+                        far_plane_distance,
                     ),
                 }
             }
@@ -482,6 +493,7 @@ impl ViewBuilder {
                     *view_from_world.col_mut(2) = -view_from_world.col(2);
                 }
                 OrthographicCameraMode::NearPlaneCenter => {}
+                OrthographicCameraMode::FixedVertical => {}
             },
             Projection::Perspective { .. } => {}
         };

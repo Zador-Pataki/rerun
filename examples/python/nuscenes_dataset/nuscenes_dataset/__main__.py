@@ -317,7 +317,8 @@ def main() -> None:
         rrb.Spatial2DView(
             name=sensor_name,
             origin=f"world/ego_vehicle/{sensor_name}",
-            contents=["$origin/**", "world/anns"],
+            contents=["world/anns"],
+            # contents=["$origin/**"],#"", "world/anns"],
             overrides={"world/anns": rr.Boxes3D.from_fields(fill_mode="majorwireframe")},
         )
         for sensor_name in nuscene_sensor_names(nusc, args.scene_name)
