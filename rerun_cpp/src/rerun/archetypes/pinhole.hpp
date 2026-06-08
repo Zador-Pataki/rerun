@@ -7,10 +7,13 @@
 #include "../component_batch.hpp"
 #include "../component_column.hpp"
 #include "../components/color.hpp"
+#include "../components/colormap.hpp"
 #include "../components/image_plane_distance.hpp"
 #include "../components/pinhole_projection.hpp"
 #include "../components/radius.hpp"
 #include "../components/resolution.hpp"
+#include "../components/scalar.hpp"
+#include "../components/value_range.hpp"
 #include "../components/view_coordinates.hpp"
 #include "../indicator_component.hpp"
 #include "../result.hpp"
@@ -139,6 +142,20 @@ namespace rerun::archetypes {
         /// This is only used for visualization purposes, and does not affect the projection itself.
         std::optional<ComponentBatch> radius;
 
+        /// Optional scalar value used to color the camera frustum in 3D views.
+        ///
+        /// If present, the spatial viewer maps this value to a color using `scalar_range` and `colormap`.
+        /// This takes precedence over `color`.
+        std::optional<ComponentBatch> scalar;
+
+        /// Optional scalar value range used for colormapping `scalar`.
+        ///
+        /// Values outside this range are clamped to the nearest end of the colormap.
+        std::optional<ComponentBatch> scalar_range;
+
+        /// Optional colormap used for scalar-colored camera frustums.
+        std::optional<ComponentBatch> colormap;
+
       public:
         static constexpr const char IndicatorComponentName[] = "rerun.components.PinholeIndicator";
 
@@ -174,6 +191,20 @@ namespace rerun::archetypes {
         /// `ComponentDescriptor` for the `radius` field.
         static constexpr auto Descriptor_radius = ComponentDescriptor(
             ArchetypeName, "radius", Loggable<rerun::components::Radius>::Descriptor.component_name
+        );
+        /// `ComponentDescriptor` for the `scalar` field.
+        static constexpr auto Descriptor_scalar = ComponentDescriptor(
+            ArchetypeName, "scalar", Loggable<rerun::components::Scalar>::Descriptor.component_name
+        );
+        /// `ComponentDescriptor` for the `scalar_range` field.
+        static constexpr auto Descriptor_scalar_range = ComponentDescriptor(
+            ArchetypeName, "scalar_range",
+            Loggable<rerun::components::ValueRange>::Descriptor.component_name
+        );
+        /// `ComponentDescriptor` for the `colormap` field.
+        static constexpr auto Descriptor_colormap = ComponentDescriptor(
+            ArchetypeName, "colormap",
+            Loggable<rerun::components::Colormap>::Descriptor.component_name
         );
 
       public: // START of extensions from pinhole_ext.cpp:
@@ -403,6 +434,62 @@ namespace rerun::archetypes {
         /// be used when logging a single row's worth of data.
         Pinhole with_many_radius(const Collection<rerun::components::Radius>& _radius) && {
             radius = ComponentBatch::from_loggable(_radius, Descriptor_radius).value_or_throw();
+            return std::move(*this);
+        }
+
+        /// Optional scalar value used to color the camera frustum in 3D views.
+        ///
+        /// If present, the spatial viewer maps this value to a color using `scalar_range` and `colormap`.
+        /// This takes precedence over `color`.
+        Pinhole with_scalar(const rerun::components::Scalar& _scalar) && {
+            scalar = ComponentBatch::from_loggable(_scalar, Descriptor_scalar).value_or_throw();
+            return std::move(*this);
+        }
+
+        /// This method makes it possible to pack multiple `scalar` in a single component batch.
+        ///
+        /// This only makes sense when used in conjunction with `columns`. `with_scalar` should
+        /// be used when logging a single row's worth of data.
+        Pinhole with_many_scalar(const Collection<rerun::components::Scalar>& _scalar) && {
+            scalar = ComponentBatch::from_loggable(_scalar, Descriptor_scalar).value_or_throw();
+            return std::move(*this);
+        }
+
+        /// Optional scalar value range used for colormapping `scalar`.
+        ///
+        /// Values outside this range are clamped to the nearest end of the colormap.
+        Pinhole with_scalar_range(const rerun::components::ValueRange& _scalar_range) && {
+            scalar_range = ComponentBatch::from_loggable(_scalar_range, Descriptor_scalar_range)
+                               .value_or_throw();
+            return std::move(*this);
+        }
+
+        /// This method makes it possible to pack multiple `scalar_range` in a single component batch.
+        ///
+        /// This only makes sense when used in conjunction with `columns`. `with_scalar_range` should
+        /// be used when logging a single row's worth of data.
+        Pinhole with_many_scalar_range(
+            const Collection<rerun::components::ValueRange>& _scalar_range
+        ) && {
+            scalar_range = ComponentBatch::from_loggable(_scalar_range, Descriptor_scalar_range)
+                               .value_or_throw();
+            return std::move(*this);
+        }
+
+        /// Optional colormap used for scalar-colored camera frustums.
+        Pinhole with_colormap(const rerun::components::Colormap& _colormap) && {
+            colormap =
+                ComponentBatch::from_loggable(_colormap, Descriptor_colormap).value_or_throw();
+            return std::move(*this);
+        }
+
+        /// This method makes it possible to pack multiple `colormap` in a single component batch.
+        ///
+        /// This only makes sense when used in conjunction with `columns`. `with_colormap` should
+        /// be used when logging a single row's worth of data.
+        Pinhole with_many_colormap(const Collection<rerun::components::Colormap>& _colormap) && {
+            colormap =
+                ComponentBatch::from_loggable(_colormap, Descriptor_colormap).value_or_throw();
             return std::move(*this);
         }
 

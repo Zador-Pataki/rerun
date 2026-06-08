@@ -23,6 +23,7 @@ from .tensor_slice_selection import TensorSliceSelection
 from .tensor_view_fit import TensorViewFit
 from .view_blueprint import ViewBlueprint
 from .view_contents import ViewContents
+from .view_projection3d import ViewProjection3D
 from .viewport_blueprint import ViewportBlueprint
 from .visible_time_ranges import VisibleTimeRanges
 from .visual_bounds2d import VisualBounds2D
@@ -50,6 +51,7 @@ __all__ = [
     "TensorViewFit",
     "ViewBlueprint",
     "ViewContents",
+    "ViewProjection3D",
     "ViewportBlueprint",
     "VisibleTimeRanges",
     "VisualBounds2D",

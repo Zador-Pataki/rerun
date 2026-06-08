@@ -185,6 +185,7 @@ impl SpatialView2D {
         let eye = Eye {
             world_from_rub_view: IsoTransform::IDENTITY,
             fov_y: None,
+            orthographic_vertical_world_size: None,
         };
 
         // Don't let clipping plane become zero

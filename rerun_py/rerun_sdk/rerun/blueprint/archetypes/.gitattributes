@@ -23,6 +23,7 @@ tensor_slice_selection.py linguist-generated=true
 tensor_view_fit.py linguist-generated=true
 view_blueprint.py linguist-generated=true
 view_contents.py linguist-generated=true
+view_projection3d.py linguist-generated=true
 viewport_blueprint.py linguist-generated=true
 visible_time_ranges.py linguist-generated=true
 visual_bounds2d.py linguist-generated=true

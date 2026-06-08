@@ -12,10 +12,10 @@ use re_ui::{ContextExt as _, DesignTokens};
 use re_uri::Origin;
 use re_viewer_context::{
     blueprint_timeline, AppOptions, ApplicationSelectionState, BlueprintUndoState, CommandSender,
-    ComponentUiRegistry, DisplayMode, DragAndDropManager, GlobalContext, Item, PlayState,
-    RecordingConfig, SelectionChange, StorageContext, StoreContext, StoreHub, SystemCommand,
-    SystemCommandSender as _, TableContext, ViewClassExt as _, ViewClassRegistry, ViewStates,
-    ViewerContext,
+    ComponentUiRegistry, DisplayMode, DragAndDropManager, GlobalContext, Item,
+    NativePngSequenceExportFrameRequest, PlayState, RecordingConfig, SelectionChange,
+    StorageContext, StoreContext, StoreHub, SystemCommand, SystemCommandSender as _, TableContext,
+    ViewClassExt as _, ViewClassRegistry, ViewStates, ViewerContext,
 };
 use re_viewport::ViewportUi;
 use re_viewport_blueprint::ui::add_view_or_container_modal_ui;
@@ -168,6 +168,7 @@ impl AppState {
         welcome_screen_state: &WelcomeScreenState,
         is_history_enabled: bool,
         event_dispatcher: Option<&crate::event::ViewerEventDispatcher>,
+        native_png_sequence_export_request: Option<&NativePngSequenceExportFrameRequest>,
     ) {
         re_tracing::profile_function!();
 
@@ -317,6 +318,7 @@ impl AppState {
                         egui_ctx: &egui_ctx,
                         render_ctx,
                         command_sender,
+                        native_png_sequence_export_request,
                     },
                     store_context,
                     storage_context,
@@ -399,6 +401,7 @@ impl AppState {
                         egui_ctx: &egui_ctx,
                         render_ctx,
                         command_sender,
+                        native_png_sequence_export_request,
                     },
                     store_context,
                     storage_context,

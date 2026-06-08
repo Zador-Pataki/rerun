@@ -1,0 +1,13 @@
+namespace rerun.blueprint.components;
+
+/// Vertical world size used by an orthographic `Spatial3DView`.
+table OrthographicScale (
+  "attr.python.aliases": "float",
+  "attr.python.array_aliases": "npt.ArrayLike",
+  "attr.rerun.scope": "blueprint"
+) {
+  /// Vertical world size.
+  ///
+  /// Values less than or equal to zero mean automatic scene fitting.
+  scale: rerun.datatypes.Float32 (order: 100);
+}

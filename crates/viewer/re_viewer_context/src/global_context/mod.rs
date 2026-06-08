@@ -8,14 +8,19 @@ mod app_options;
 mod command_sender;
 mod component_ui_registry;
 mod item;
+mod native_png_sequence_export;
 
 pub use self::{
-    app_options::AppOptions,
+    app_options::{AppOptions, SpatialView3dProjection},
     command_sender::{
         command_channel, CommandReceiver, CommandSender, SystemCommand, SystemCommandSender,
     },
     component_ui_registry::{ComponentUiRegistry, ComponentUiTypes},
     item::Item,
+    native_png_sequence_export::{
+        NativePngSequenceExportFrameRequest, NativePngSequenceExportReadback,
+        NATIVE_PNG_SEQUENCE_EXPORT_READBACK_ID,
+    },
 };
 
 use crate::ViewClassRegistry;
@@ -51,6 +56,9 @@ pub struct GlobalContext<'a> {
 
     /// Interface for sending commands back to the app
     pub command_sender: &'a CommandSender,
+
+    /// Native-only request for 3D views to export their renderer output this frame.
+    pub native_png_sequence_export_request: Option<&'a NativePngSequenceExportFrameRequest>,
 }
 
 /// Which display mode are we currently in?

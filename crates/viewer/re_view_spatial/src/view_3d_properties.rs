@@ -1,7 +1,7 @@
 use re_types::{
     blueprint::{
         archetypes::{Background, LineGrid3D},
-        components::BackgroundKind,
+        components::{BackgroundKind, OrthographicScale, ProjectionKind3D},
     },
     components::{Color, Plane3D, StrokeWidth},
     Archetype as _,
@@ -29,6 +29,18 @@ impl TypedComponentFallbackProvider<BackgroundKind> for SpatialView3D {
     }
 }
 
+impl TypedComponentFallbackProvider<ProjectionKind3D> for SpatialView3D {
+    fn fallback_for(&self, _ctx: &re_viewer_context::QueryContext<'_>) -> ProjectionKind3D {
+        ProjectionKind3D::Perspective
+    }
+}
+
+impl TypedComponentFallbackProvider<OrthographicScale> for SpatialView3D {
+    fn fallback_for(&self, _ctx: &re_viewer_context::QueryContext<'_>) -> OrthographicScale {
+        0.0.into()
+    }
+}
+
 impl TypedComponentFallbackProvider<StrokeWidth> for SpatialView3D {
     fn fallback_for(&self, _ctx: &re_viewer_context::QueryContext<'_>) -> StrokeWidth {
         1.0.into()
@@ -51,4 +63,4 @@ impl TypedComponentFallbackProvider<Plane3D> for SpatialView3D {
     }
 }
 
-re_viewer_context::impl_component_fallback_provider!(SpatialView3D => [BackgroundKind, Color, StrokeWidth, Plane3D]);
+re_viewer_context::impl_component_fallback_provider!(SpatialView3D => [BackgroundKind, ProjectionKind3D, OrthographicScale, Color, StrokeWidth, Plane3D]);

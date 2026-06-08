@@ -4,14 +4,15 @@ use web_time::Instant;
 
 use re_log_types::EntityPath;
 use re_math::BoundingBox;
+use re_renderer::view_builder::OrthographicCameraMode;
 use re_renderer::{
     view_builder::{Projection, TargetConfiguration, ViewBuilder},
     LineDrawableBuilder, Size,
 };
 use re_types::{
     blueprint::{
-        archetypes::{Background, LineGrid3D},
-        components::GridSpacing,
+        archetypes::{Background, LineGrid3D, ViewProjection3D},
+        components::{GridSpacing, OrthographicScale, ProjectionKind3D},
     },
     components::{ViewCoordinates, Visible},
     view_coordinates::SignedAxis3,
@@ -24,7 +25,8 @@ use re_view::controls::{
     SPEED_UP_3D_MODIFIER, TRACKED_OBJECT_RESTORE_KEY,
 };
 use re_viewer_context::{
-    gpu_bridge, Item, ItemContext, ViewQuery, ViewSystemExecutionError, ViewerContext,
+    gpu_bridge, Item, ItemContext, NativePngSequenceExportReadback, SpatialView3dProjection,
+    ViewQuery, ViewSystemExecutionError, ViewerContext, NATIVE_PNG_SEQUENCE_EXPORT_READBACK_ID,
 };
 use re_viewport_blueprint::ViewProperty;
 
@@ -40,6 +42,8 @@ use crate::{
 use super::eye::{Eye, ViewEye};
 
 // ---
+
+pub type ProjectionMode = SpatialView3dProjection;
 
 #[derive(Clone)]
 pub struct View3DState {
@@ -70,6 +74,8 @@ pub struct View3DState {
     pub show_smoothed_bbox: bool,
 
     eye_interact_fade_in: bool,
+    pub ortho_vertical_world_size: f32,
+    pub ortho_far_plane_distance: f32,
     eye_interact_fade_change_time: f64,
 }
 
@@ -87,6 +93,8 @@ impl Default for View3DState {
             show_bbox: false,
             show_smoothed_bbox: false,
             eye_interact_fade_in: false,
+            ortho_vertical_world_size: 0.0,
+            ortho_far_plane_distance: 100_000.0,
             eye_interact_fade_change_time: f64::NEG_INFINITY,
         }
     }
@@ -97,6 +105,14 @@ fn ease_out(t: f32) -> f32 {
 }
 
 impl View3DState {
+    pub fn orthographic_vertical_world_size(&self, bounding_box: &BoundingBox) -> f32 {
+        if self.ortho_vertical_world_size.is_finite() && self.ortho_vertical_world_size > 0.0 {
+            self.ortho_vertical_world_size
+        } else {
+            bounding_box.size().length().at_least(1.0)
+        }
+    }
+
     pub fn reset_camera(
         &mut self,
         scene_bbox: &SceneBoundingBoxes,
@@ -463,7 +479,63 @@ impl SpatialView3D {
             space_cameras,
             scene_view_coordinates,
         );
-        let eye = view_eye.to_eye();
+        let projection_property = ViewProperty::from_archetype::<ViewProjection3D>(
+            ctx.blueprint_db(),
+            ctx.blueprint_query,
+            query.view_id,
+        );
+        let projection_kind =
+            projection_property.component_or_fallback::<ProjectionKind3D>(ctx, self, state)?;
+        let projection_mode = ctx
+            .app_options()
+            .force_spatial_view_3d_projection
+            .unwrap_or_else(|| match projection_kind {
+                ProjectionKind3D::Perspective => ProjectionMode::Perspective,
+                ProjectionKind3D::Orthographic => ProjectionMode::Orthographic,
+            });
+        let blueprint_orthographic_scale =
+            **projection_property.component_or_fallback::<OrthographicScale>(ctx, self, state)?;
+        let orthographic_vertical_world_size = ctx
+            .app_options()
+            .force_spatial_view_3d_orthographic_scale
+            .unwrap_or_else(|| {
+                if blueprint_orthographic_scale.is_finite() && blueprint_orthographic_scale > 0.0 {
+                    blueprint_orthographic_scale
+                } else {
+                    state
+                        .state_3d
+                        .orthographic_vertical_world_size(&state.bounding_boxes.current)
+                }
+            });
+        let mut eye = view_eye.to_eye();
+        let forced_eye = ctx
+            .app_options()
+            .force_spatial_view_3d_eye_from_camera
+            .as_ref()
+            .and_then(|camera_entity_path| find_camera(space_cameras, camera_entity_path));
+        let forced_eye_available = forced_eye.is_some();
+        if let Some(forced_eye) = forced_eye {
+            eye = forced_eye;
+        } else if ctx
+            .global_context
+            .native_png_sequence_export_request
+            .is_some()
+        {
+            if let Some(camera_entity_path) =
+                &ctx.app_options().force_spatial_view_3d_eye_from_camera
+            {
+                re_log::error!(
+                    "Cannot export Spatial3D PNG frame: forced camera {camera_entity_path} was not found"
+                );
+            } else {
+                re_log::error!(
+                    "Cannot export Spatial3D PNG frame: no forced 3D camera path was configured"
+                );
+            }
+        }
+        if projection_mode == ProjectionMode::Orthographic {
+            eye = eye.with_orthographic_projection(orthographic_vertical_world_size);
+        }
 
         // Determine view port resolution and position.
         let resolution_in_pixel =
@@ -478,10 +550,17 @@ impl SpatialView3D {
             resolution_in_pixel,
 
             view_from_world: eye.world_from_rub_view.inverse(),
-            projection_from_view: Projection::Perspective {
-                vertical_fov: eye.fov_y.unwrap_or(Eye::DEFAULT_FOV_Y),
-                near_plane_distance: eye.near(),
-                aspect_ratio: resolution_in_pixel[0] as f32 / resolution_in_pixel[1] as f32,
+            projection_from_view: match projection_mode {
+                ProjectionMode::Perspective => Projection::Perspective {
+                    vertical_fov: eye.fov_y.unwrap_or(Eye::DEFAULT_FOV_Y),
+                    near_plane_distance: eye.near(),
+                    aspect_ratio: resolution_in_pixel[0] as f32 / resolution_in_pixel[1] as f32,
+                },
+                ProjectionMode::Orthographic => Projection::Orthographic {
+                    camera_mode: OrthographicCameraMode::NearPlaneCenter,
+                    vertical_world_size: orthographic_vertical_world_size,
+                    far_plane_distance: state.state_3d.ortho_far_plane_distance,
+                },
             },
             viewport_transformation: re_renderer::RectTransform::IDENTITY,
 
@@ -521,6 +600,20 @@ impl SpatialView3D {
         }
 
         let mut view_builder = ViewBuilder::new(ctx.render_ctx(), target_config);
+        if forced_eye_available {
+            if let Some(request) = ctx.global_context.native_png_sequence_export_request {
+                view_builder.schedule_screenshot(
+                    ctx.render_ctx(),
+                    NATIVE_PNG_SEQUENCE_EXPORT_READBACK_ID,
+                    NativePngSequenceExportReadback {
+                        frame_index: request.frame_index,
+                        output_path: request.output_path.clone(),
+                        view_id: query.view_id,
+                    },
+                )?;
+                request.mark_scheduled();
+            }
+        }
 
         // Create labels now since their shapes participate are added to scene.ui for picking.
         let (label_shapes, ui_rects) = create_labels(

@@ -21,6 +21,11 @@ Configuration for the 3D line grid.
 * `plane`: In what plane the grid is drawn.
 * `stroke_width`: How thick the lines should be in ui units.
 * `color`: Color used for the grid.
+### `projection`
+Projection settings for this 3D view.
+
+* `kind`: Projection mode used by the 3D view.
+* `orthographic_scale`: Vertical world size used when the projection is orthographic.
 ### `time_ranges`
 Configures which range on each timeline is shown by this view (unless specified differently per entity).
 

@@ -23,7 +23,9 @@ from .included_content import IncludedContent, IncludedContentBatch
 from .lock_range_during_zoom import LockRangeDuringZoom, LockRangeDuringZoomBatch
 from .map_provider import MapProvider, MapProviderArrayLike, MapProviderBatch, MapProviderLike
 from .near_clip_plane import NearClipPlane, NearClipPlaneBatch
+from .orthographic_scale import OrthographicScale, OrthographicScaleBatch
 from .panel_state import PanelState, PanelStateArrayLike, PanelStateBatch, PanelStateLike
+from .projection_kind3d import ProjectionKind3D, ProjectionKind3DArrayLike, ProjectionKind3DBatch, ProjectionKind3DLike
 from .query_expression import QueryExpression, QueryExpressionBatch
 from .root_container import RootContainer, RootContainerBatch
 from .row_share import RowShare, RowShareBatch
@@ -91,10 +93,16 @@ __all__ = [
     "MapProviderLike",
     "NearClipPlane",
     "NearClipPlaneBatch",
+    "OrthographicScale",
+    "OrthographicScaleBatch",
     "PanelState",
     "PanelStateArrayLike",
     "PanelStateBatch",
     "PanelStateLike",
+    "ProjectionKind3D",
+    "ProjectionKind3DArrayLike",
+    "ProjectionKind3DBatch",
+    "ProjectionKind3DLike",
     "QueryExpression",
     "QueryExpressionBatch",
     "RootContainer",

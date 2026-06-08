@@ -96,6 +96,7 @@ class Spatial3DView(View):
         | blueprint_components.BackgroundKindLike
         | None = None,
         line_grid: blueprint_archetypes.LineGrid3D | None = None,
+        projection: blueprint_archetypes.ViewProjection3D | None = None,
         time_ranges: blueprint_archetypes.VisibleTimeRanges
         | datatypes.VisibleTimeRangeLike
         | Sequence[datatypes.VisibleTimeRangeLike]
@@ -140,6 +141,8 @@ class Spatial3DView(View):
             Configuration for the background of the view.
         line_grid:
             Configuration for the 3D line grid.
+        projection:
+            Projection settings for this 3D view.
         time_ranges:
             Configures which range on each timeline is shown by this view (unless specified differently per entity).
 
@@ -158,6 +161,11 @@ class Spatial3DView(View):
             if not isinstance(line_grid, blueprint_archetypes.LineGrid3D):
                 line_grid = blueprint_archetypes.LineGrid3D(line_grid)
             properties["LineGrid3D"] = line_grid
+
+        if projection is not None:
+            if not isinstance(projection, blueprint_archetypes.ViewProjection3D):
+                projection = blueprint_archetypes.ViewProjection3D(projection)
+            properties["ViewProjection3D"] = projection
 
         if time_ranges is not None:
             if not isinstance(time_ranges, blueprint_archetypes.VisibleTimeRanges):

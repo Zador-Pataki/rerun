@@ -1,0 +1,14 @@
+namespace rerun.blueprint.archetypes;
+
+/// Projection settings for a `Spatial3DView`.
+table ViewProjection3D (
+    "attr.rerun.scope": "blueprint"
+) {
+    /// Projection mode used by the 3D view.
+    kind: rerun.blueprint.components.ProjectionKind3D ("attr.rerun.component_optional", nullable, order: 1000);
+
+    /// Vertical world size used when the projection is orthographic.
+    ///
+    /// Values less than or equal to zero mean automatic scene fitting.
+    orthographic_scale: rerun.blueprint.components.OrthographicScale ("attr.rerun.component_optional", nullable, order: 2000);
+}

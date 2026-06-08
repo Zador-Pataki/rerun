@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 
-use clap::{CommandFactory as _, Subcommand};
+use clap::{CommandFactory as _, Subcommand, ValueEnum};
 use crossbeam::channel::Receiver as CrossbeamReceiver;
 use itertools::Itertools as _;
 use tokio::runtime::Runtime;
@@ -79,6 +79,21 @@ Examples:
         rerun --save new_recording.rrd
 "#;
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum SpatialView3dProjectionArg {
+    Perspective,
+    Orthographic,
+}
+
+impl From<SpatialView3dProjectionArg> for re_viewer_context::SpatialView3dProjection {
+    fn from(value: SpatialView3dProjectionArg) -> Self {
+        match value {
+            SpatialView3dProjectionArg::Perspective => Self::Perspective,
+            SpatialView3dProjectionArg::Orthographic => Self::Orthographic,
+        }
+    }
+}
+
 #[derive(Debug, clap::Parser)]
 #[clap(
     long_about = LONG_ABOUT,
@@ -155,6 +170,42 @@ When persisted, the state will be stored at the following locations:
     /// Useful together with `--window-size`.
     #[clap(long)]
     screenshot_to: Option<std::path::PathBuf>,
+
+    /// Force 3D spatial views to render from this logged camera entity.
+    #[clap(long)]
+    force_spatial_view_3d_eye_from_camera: Option<String>,
+
+    /// Force 3D spatial views to render with perspective or orthographic projection.
+    #[clap(long)]
+    force_spatial_view_3d_projection: Option<SpatialView3dProjectionArg>,
+
+    /// Force the orthographic vertical world size for 3D spatial views.
+    #[clap(long)]
+    force_spatial_view_3d_orthographic_scale: Option<f32>,
+
+    /// Export the forced 3D spatial view to a native PNG sequence in this directory.
+    #[cfg(feature = "native_viewer")]
+    #[clap(
+        long,
+        value_name = "DIR",
+        requires_all = [
+            "force_spatial_view_3d_eye_from_camera",
+            "export_spatial_view_3d_png_sequence_timeline"
+        ]
+    )]
+    export_spatial_view_3d_png_sequence_to: Option<std::path::PathBuf>,
+
+    /// Timeline to iterate while exporting the forced 3D spatial view PNG sequence.
+    #[cfg(feature = "native_viewer")]
+    #[clap(
+        long,
+        value_name = "NAME",
+        requires_all = [
+            "force_spatial_view_3d_eye_from_camera",
+            "export_spatial_view_3d_png_sequence_to"
+        ]
+    )]
+    export_spatial_view_3d_png_sequence_timeline: Option<String>,
 
     /// Deprecated: use `--serve-web` instead.
     #[clap(long)]
@@ -684,6 +735,22 @@ fn run_impl(
             persist_state: args.persist_state,
             is_in_notebook: false,
             screenshot_to_path_then_quit: args.screenshot_to.clone(),
+            force_spatial_view_3d_eye_from_camera: args
+                .force_spatial_view_3d_eye_from_camera
+                .as_deref()
+                .map(re_log_types::EntityPath::parse_forgiving),
+            force_spatial_view_3d_projection: args.force_spatial_view_3d_projection.map(Into::into),
+            force_spatial_view_3d_orthographic_scale: args.force_spatial_view_3d_orthographic_scale,
+            spatial_view_3d_png_sequence_export: args
+                .export_spatial_view_3d_png_sequence_to
+                .clone()
+                .zip(args.export_spatial_view_3d_png_sequence_timeline.as_deref())
+                .map(|(output_dir, timeline)| {
+                    re_viewer::StartupOptions::spatial_view_3d_png_sequence_export_options(
+                        output_dir,
+                        re_log_types::TimelineName::new(timeline),
+                    )
+                }),
 
             expect_data_soon: if args.expect_data_soon {
                 Some(true)

@@ -190,6 +190,9 @@ fn component_list_ui(
                 if !show_indicator_comps && component_name.is_indicator_component() {
                     continue;
                 }
+                if is_instance_preview_link_text(component_name, unit, instance) {
+                    continue;
+                }
 
                 let component_path = ComponentPath::new(entity_path.clone(), component_name);
                 let is_static = db
@@ -265,6 +268,25 @@ fn component_list_ui(
             }
         },
     );
+}
+
+fn is_instance_preview_link_text(
+    component_name: ComponentName,
+    unit: &UnitChunkShared,
+    instance: &re_log_types::Instance,
+) -> bool {
+    const INSTANCE_PREVIEW_LABEL_PREFIX: &str = "rerun-preview:";
+
+    if component_name != components::Text::name() || !instance.is_specific() {
+        return false;
+    }
+    let Ok(instance_index) = usize::try_from(instance.get()) else {
+        return false;
+    };
+    let Some(Ok(text)) = unit.component_instance::<components::Text>(instance_index) else {
+        return false;
+    };
+    text.0.as_str().starts_with(INSTANCE_PREVIEW_LABEL_PREFIX)
 }
 
 /// If this entity is an image, show it together with buttons to download and copy the image.

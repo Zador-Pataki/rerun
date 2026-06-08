@@ -342,6 +342,7 @@ impl TestContext {
                 egui_ctx,
                 command_sender: &self.command_sender,
                 render_ctx,
+                native_png_sequence_export_request: None,
             },
             store_context: &store_context,
             active_redap_entry: None,

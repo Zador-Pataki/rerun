@@ -12,6 +12,9 @@ table Spatial3DView (
     /// Configuration for the 3D line grid.
     line_grid: rerun.blueprint.archetypes.LineGrid3D (order: 2000);
 
+    /// Projection settings for this 3D view.
+    projection: rerun.blueprint.archetypes.ViewProjection3D (order: 3000);
+
     /// Configures which range on each timeline is shown by this view (unless specified differently per entity).
     ///
     /// If not specified, the default is to show the latest state of each component.

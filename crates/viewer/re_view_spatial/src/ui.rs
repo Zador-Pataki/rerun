@@ -147,6 +147,7 @@ impl SpatialViewState {
                 eye.set_mode(mode);
             });
         }
+
     }
 }
 

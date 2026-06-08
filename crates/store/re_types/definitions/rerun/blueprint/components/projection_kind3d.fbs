@@ -1,0 +1,15 @@
+namespace rerun.blueprint.components;
+
+/// Projection mode used by a `Spatial3DView`.
+enum ProjectionKind3D: ubyte (
+    "attr.rerun.scope": "blueprint"
+) {
+    /// Invalid value. Won't show up in generated types.
+    Invalid = 0,
+
+    /// Perspective projection.
+    Perspective (default),
+
+    /// Orthographic projection.
+    Orthographic,
+}

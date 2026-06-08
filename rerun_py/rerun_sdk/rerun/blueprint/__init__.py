@@ -35,6 +35,7 @@ from .archetypes import (
     ScalarAxis as ScalarAxis,
     TensorScalarMapping as TensorScalarMapping,
     TensorSliceSelection as TensorSliceSelection,
+    ViewProjection3D as ViewProjection3D,
     VisibleTimeRanges as VisibleTimeRanges,
     VisualBounds2D as VisualBounds2D,
     VisualizerOverrides as VisualizerOverrides,
@@ -44,6 +45,8 @@ from .components import (
     Corner2D as Corner2D,
     LockRangeDuringZoom as LockRangeDuringZoom,
     MapProvider as MapProvider,
+    OrthographicScale as OrthographicScale,
+    ProjectionKind3D as ProjectionKind3D,
 )
 from .containers import (
     Grid as Grid,
