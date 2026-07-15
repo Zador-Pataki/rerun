@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use re_entity_db::EntityDb;
 use re_log_types::{TimeInt, TimelineName};
@@ -12,6 +13,9 @@ use re_viewer_context::{
 pub struct NativePngSequenceExportOptions {
     pub output_dir: PathBuf,
     pub timeline_name: TimelineName,
+    pub frame_start: Option<usize>,
+    pub frame_end: Option<usize>,
+    pub wait_for_consumer: bool,
 }
 
 #[derive(Default)]
@@ -26,12 +30,14 @@ pub struct NativePngSequenceExport {
     observed_frame_count: usize,
     stable_frame_count_observations: usize,
     timeline_wait_frames: usize,
+    consumer_wait_started: Option<Instant>,
     done: bool,
     failed: bool,
 }
 
 const REQUIRED_STABLE_FRAME_COUNT_OBSERVATIONS: usize = 60;
 const MAX_TIMELINE_WAIT_FRAMES: usize = 1800;
+const MAX_CONSUMER_WAIT: Duration = Duration::from_secs(180);
 
 impl NativePngSequenceExport {
     pub fn new(options: Option<NativePngSequenceExportOptions>) -> Self {
@@ -47,6 +53,7 @@ impl NativePngSequenceExport {
             observed_frame_count: 0,
             stable_frame_count_observations: 0,
             timeline_wait_frames: 0,
+            consumer_wait_started: None,
             done: false,
             failed: false,
         }
@@ -54,6 +61,14 @@ impl NativePngSequenceExport {
 
     pub fn is_enabled(&self) -> bool {
         self.options.is_some()
+    }
+
+    pub fn retains_recording_for_bounded_export(&self) -> bool {
+        self.options.as_ref().is_some_and(|options| {
+            options.frame_start.is_some()
+                && options.frame_end.is_some()
+                && options.wait_for_consumer
+        })
     }
 
     pub fn should_close(&self) -> bool {
@@ -74,11 +89,20 @@ impl NativePngSequenceExport {
             return None;
         }
         if self.frame_times.is_none() {
-            let Some(frame_times) =
+            let Some(mut frame_times) =
                 self.collect_stable_frame_times(recording, &options.timeline_name)
             else {
                 return None;
             };
+            let (start, end) = match selected_frame_range(
+                frame_times.len(),
+                options.frame_start,
+                options.frame_end,
+            ) {
+                Ok(range) => range,
+                Err(err) => return self.fail(err),
+            };
+            frame_times = frame_times[start..=end].to_vec();
             re_log::info!(
                 "Exporting {} Spatial3D PNG frames to {:?}",
                 frame_times.len(),
@@ -100,6 +124,26 @@ impl NativePngSequenceExport {
             );
             return None;
         }
+
+        if options.wait_for_consumer && self.next_frame_index > 0 {
+            let previous = options
+                .output_dir
+                .join(format!("frame_{:06}.png", self.next_frame_index - 1));
+            if waits_for_consumer(
+                options.wait_for_consumer,
+                self.next_frame_index,
+                previous.exists(),
+            ) {
+                let started = self.consumer_wait_started.get_or_insert_with(Instant::now);
+                if consumer_wait_timed_out(started.elapsed()) {
+                    return self.fail(format!(
+                        "Timed out waiting for the Spatial3D PNG export consumer to delete {previous:?}"
+                    ));
+                }
+                return None;
+            }
+        }
+        self.consumer_wait_started = None;
 
         let frame_index = self.next_frame_index as u64;
         let frame_time = frame_times[self.next_frame_index];
@@ -278,9 +322,96 @@ fn collect_frame_times(
     Ok(frame_times)
 }
 
+fn selected_frame_range(
+    frame_count: usize,
+    start: Option<usize>,
+    end: Option<usize>,
+) -> Result<(usize, usize), String> {
+    let start = start.unwrap_or(0);
+    let end = end.unwrap_or_else(|| frame_count.saturating_sub(1));
+    if frame_count == 0 || start > end || end >= frame_count {
+        return Err(format!(
+            "Cannot export Spatial3D PNG frame range {start}..={end}: timeline has {frame_count} frames"
+        ));
+    }
+    Ok((start, end))
+}
+
+fn waits_for_consumer(
+    wait_for_consumer: bool,
+    next_frame_index: usize,
+    previous_frame_exists: bool,
+) -> bool {
+    wait_for_consumer && next_frame_index > 0 && previous_frame_exists
+}
+
+fn consumer_wait_timed_out(elapsed: Duration) -> bool {
+    elapsed >= MAX_CONSUMER_WAIT
+}
+
 fn prepare_output_dir(output_dir: &std::path::Path) -> Result<(), String> {
     std::fs::create_dir_all(output_dir).map_err(|err| {
         format!("Failed to create Spatial3D PNG export directory {output_dir:?}: {err}")
     })?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn options(
+        frame_start: Option<usize>,
+        frame_end: Option<usize>,
+        wait_for_consumer: bool,
+    ) -> NativePngSequenceExportOptions {
+        NativePngSequenceExportOptions {
+            output_dir: PathBuf::from("frames"),
+            timeline_name: TimelineName::new("frame"),
+            frame_start,
+            frame_end,
+            wait_for_consumer,
+        }
+    }
+
+    #[test]
+    fn frame_range_is_inclusive_and_validated() {
+        assert_eq!(selected_frame_range(10, Some(2), Some(6)), Ok((2, 6)));
+        assert_eq!(selected_frame_range(10, None, None), Ok((0, 9)));
+        assert!(selected_frame_range(10, Some(7), Some(6)).is_err());
+        assert!(selected_frame_range(10, Some(0), Some(10)).is_err());
+        assert!(selected_frame_range(0, None, None).is_err());
+    }
+
+    #[test]
+    fn consumer_wait_requires_backpressure_and_an_existing_previous_frame() {
+        assert!(waits_for_consumer(true, 1, true));
+        assert!(!waits_for_consumer(false, 1, true));
+        assert!(!waits_for_consumer(true, 0, true));
+        assert!(!waits_for_consumer(true, 1, false));
+        assert!(!consumer_wait_timed_out(
+            MAX_CONSUMER_WAIT - Duration::from_millis(1)
+        ));
+        assert!(consumer_wait_timed_out(MAX_CONSUMER_WAIT));
+    }
+
+    #[test]
+    fn recording_retention_is_limited_to_bounded_backpressured_export() {
+        assert!(
+            NativePngSequenceExport::new(Some(options(Some(0), Some(9), true)))
+                .retains_recording_for_bounded_export()
+        );
+        assert!(
+            !NativePngSequenceExport::new(Some(options(None, Some(9), true)))
+                .retains_recording_for_bounded_export()
+        );
+        assert!(
+            !NativePngSequenceExport::new(Some(options(Some(0), None, true)))
+                .retains_recording_for_bounded_export()
+        );
+        assert!(
+            !NativePngSequenceExport::new(Some(options(Some(0), Some(9), false)))
+                .retains_recording_for_bounded_export()
+        );
+    }
 }

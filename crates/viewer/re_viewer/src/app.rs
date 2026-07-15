@@ -236,6 +236,9 @@ impl App {
                         crate::native_png_sequence_export::NativePngSequenceExportOptions {
                             output_dir: options.output_dir,
                             timeline_name: options.timeline,
+                            frame_start: options.frame_start,
+                            frame_end: options.frame_end,
+                            wait_for_consumer: options.wait_for_consumer,
                         }
                     }),
             );
@@ -1637,6 +1640,14 @@ impl App {
 
     fn purge_memory_if_needed(&mut self, store_hub: &mut StoreHub) {
         re_tracing::profile_function!();
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if self
+            .native_png_sequence_export
+            .retains_recording_for_bounded_export()
+        {
+            return;
+        }
 
         fn format_limit(limit: Option<i64>) -> String {
             if let Some(bytes) = limit {

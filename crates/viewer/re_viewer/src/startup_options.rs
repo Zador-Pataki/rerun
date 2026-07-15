@@ -6,6 +6,9 @@ use crate::event::ViewerEventCallback;
 pub struct SpatialView3dPngSequenceExportOptions {
     pub output_dir: std::path::PathBuf,
     pub timeline: re_log_types::TimelineName,
+    pub frame_start: Option<usize>,
+    pub frame_end: Option<usize>,
+    pub wait_for_consumer: bool,
 }
 
 /// Settings set once at startup (e.g. via command-line options) and not serialized.
@@ -150,10 +153,16 @@ impl StartupOptions {
     pub fn spatial_view_3d_png_sequence_export_options(
         output_dir: std::path::PathBuf,
         timeline: re_log_types::TimelineName,
+        frame_start: Option<usize>,
+        frame_end: Option<usize>,
+        wait_for_consumer: bool,
     ) -> SpatialView3dPngSequenceExportOptions {
         SpatialView3dPngSequenceExportOptions {
             output_dir,
             timeline,
+            frame_start,
+            frame_end,
+            wait_for_consumer,
         }
     }
 }

@@ -207,6 +207,29 @@ When persisted, the state will be stored at the following locations:
     )]
     export_spatial_view_3d_png_sequence_timeline: Option<String>,
 
+    /// First source frame to export, inclusive.
+    #[cfg(feature = "native_viewer")]
+    #[clap(
+        long,
+        value_name = "INDEX",
+        requires = "export_spatial_view_3d_png_sequence_to"
+    )]
+    export_spatial_view_3d_png_sequence_start: Option<usize>,
+
+    /// Last source frame to export, inclusive.
+    #[cfg(feature = "native_viewer")]
+    #[clap(
+        long,
+        value_name = "INDEX",
+        requires = "export_spatial_view_3d_png_sequence_to"
+    )]
+    export_spatial_view_3d_png_sequence_end: Option<usize>,
+
+    /// Wait for each exported PNG to be deleted before exporting the next one.
+    #[cfg(feature = "native_viewer")]
+    #[clap(long, requires = "export_spatial_view_3d_png_sequence_to")]
+    export_spatial_view_3d_png_sequence_wait_for_consumer: bool,
+
     /// Deprecated: use `--serve-web` instead.
     #[clap(long)]
     serve: bool,
@@ -749,6 +772,9 @@ fn run_impl(
                     re_viewer::StartupOptions::spatial_view_3d_png_sequence_export_options(
                         output_dir,
                         re_log_types::TimelineName::new(timeline),
+                        args.export_spatial_view_3d_png_sequence_start,
+                        args.export_spatial_view_3d_png_sequence_end,
+                        args.export_spatial_view_3d_png_sequence_wait_for_consumer,
                     )
                 }),
 
