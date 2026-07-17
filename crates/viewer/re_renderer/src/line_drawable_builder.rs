@@ -237,6 +237,20 @@ impl<'ctx> LineBatchBuilder<'_, 'ctx> {
         self
     }
 
+    /// Sets painter's order for batches rendered without depth testing.
+    #[inline]
+    pub fn draw_order(mut self, draw_order: f32) -> Self {
+        self.batch_mut().draw_order = draw_order;
+        self
+    }
+
+    /// Renders the batch after opaque geometry without depth testing.
+    #[inline]
+    pub fn always_on_top(mut self, always_on_top: bool) -> Self {
+        self.batch_mut().always_on_top = always_on_top;
+        self
+    }
+
     /// Sets the length factor as multiple of a line's radius applied to all triangle caps in this batch.
     ///
     /// This controls how far the "pointy end" of the triangle/arrow-head extends.

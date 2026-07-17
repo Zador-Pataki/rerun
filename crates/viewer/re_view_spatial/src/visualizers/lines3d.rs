@@ -3,7 +3,8 @@ use re_renderer::{renderer::LineStripFlags, PickingLayerInstanceId};
 use re_types::{
     archetypes::LineStrips3D,
     components::{
-        ClassId, Color, Colormap, LineStrip3D, Radius, Scalar, ShowLabels, Text, ValueRange,
+        ClassId, Color, Colormap, DrawOrder, LineStrip3D, Radius, Scalar, ShowLabels, Text,
+        ValueRange,
     },
     ArrowString, Component as _,
 };
@@ -24,6 +25,12 @@ use crate::{
 use super::{filter_visualizable_3d_entities, process_radius_slice, SpatialViewVisualizerData};
 
 // ---
+
+const ALWAYS_ON_TOP_DRAW_ORDER: f32 = 10_000.0;
+
+fn is_always_on_top_draw_order(draw_order: f32) -> bool {
+    draw_order >= ALWAYS_ON_TOP_DRAW_ORDER
+}
 
 pub struct Lines3DVisualizer {
     pub data: SpatialViewVisualizerData,
@@ -49,6 +56,13 @@ impl Lines3DVisualizer {
         data: impl Iterator<Item = Lines3DComponentData<'a>>,
     ) {
         let entity_path = ctx.target_entity_path;
+        let draw_order = ctx
+            .recording()
+            .latest_at(ctx.query, entity_path, [DrawOrder::name()])
+            .component_instance::<DrawOrder>(0)
+            .unwrap_or_default()
+            .0
+             .0;
 
         for data in data {
             let num_instances = data.strips.len();
@@ -68,7 +82,6 @@ impl Lines3DVisualizer {
             let radii =
                 process_radius_slice(entity_path, num_instances, data.radii, Radius::default());
             let colors = self.process_line_colors(ctx, num_instances, &annotation_infos, &data);
-
             let world_from_obj = ent_context
                 .transform_info
                 .single_entity_transform_required(entity_path, "Lines2D");
@@ -76,6 +89,8 @@ impl Lines3DVisualizer {
             let mut line_batch = line_builder
                 .batch(entity_path.to_string())
                 .depth_offset(ent_context.depth_offset)
+                .draw_order(draw_order)
+                .always_on_top(is_always_on_top_draw_order(draw_order))
                 .world_from_obj(world_from_obj)
                 .outline_mask_ids(ent_context.highlight.overall)
                 .picking_object_id(re_renderer::PickingLayerObjectId(entity_path.hash64()));
@@ -170,6 +185,19 @@ impl Lines3DVisualizer {
         }
 
         process_color_slice(ctx, self, num_instances, annotation_infos, data.colors)
+    }
+}
+
+#[cfg(test)]
+mod always_on_top_tests {
+    use super::is_always_on_top_draw_order;
+
+    #[test]
+    fn high_draw_order_selects_the_overlay_phase() {
+        assert!(is_always_on_top_draw_order(10_000.0));
+        assert!(is_always_on_top_draw_order(10_001.0));
+        assert!(!is_always_on_top_draw_order(9_999.0));
+        assert!(!is_always_on_top_draw_order(f32::NAN));
     }
 }
 

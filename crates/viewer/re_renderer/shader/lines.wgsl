@@ -359,6 +359,16 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
 }
 
 @fragment
+fn fs_main_always_on_top(in: VertexOut) -> @location(0) vec4f {
+    // Always-on-top annotations must fully cover geometry underneath them.
+    // A hard coverage cutoff avoids blending point-cloud colors through the stroke.
+    if compute_coverage(in) < 0.25 {
+        discard;
+    }
+    return vec4f(in.color.rgb, 1.0);
+}
+
+@fragment
 fn fs_main_picking_layer(in: VertexOut) -> @location(0) vec4u {
     var coverage = compute_coverage(in);
     if coverage < 0.5 {

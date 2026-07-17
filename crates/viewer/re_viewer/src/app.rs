@@ -238,6 +238,7 @@ impl App {
                             timeline_name: options.timeline,
                             frame_start: options.frame_start,
                             frame_end: options.frame_end,
+                            frame_indices: options.frame_indices,
                             wait_for_consumer: options.wait_for_consumer,
                         }
                     }),

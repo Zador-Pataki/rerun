@@ -15,6 +15,7 @@ pub struct NativePngSequenceExportOptions {
     pub timeline_name: TimelineName,
     pub frame_start: Option<usize>,
     pub frame_end: Option<usize>,
+    pub frame_indices: Option<Vec<usize>>,
     pub wait_for_consumer: bool,
 }
 
@@ -65,8 +66,8 @@ impl NativePngSequenceExport {
 
     pub fn retains_recording_for_bounded_export(&self) -> bool {
         self.options.as_ref().is_some_and(|options| {
-            options.frame_start.is_some()
-                && options.frame_end.is_some()
+            (options.frame_indices.is_some()
+                || (options.frame_start.is_some() && options.frame_end.is_some()))
                 && options.wait_for_consumer
         })
     }
@@ -94,15 +95,19 @@ impl NativePngSequenceExport {
             else {
                 return None;
             };
-            let (start, end) = match selected_frame_range(
+            let indices = match selected_frame_indices(
                 frame_times.len(),
                 options.frame_start,
                 options.frame_end,
+                options.frame_indices.as_deref(),
             ) {
-                Ok(range) => range,
+                Ok(indices) => indices,
                 Err(err) => return self.fail(err),
             };
-            frame_times = frame_times[start..=end].to_vec();
+            frame_times = indices
+                .into_iter()
+                .map(|index| frame_times[index])
+                .collect();
             re_log::info!(
                 "Exporting {} Spatial3D PNG frames to {:?}",
                 frame_times.len(),
@@ -337,6 +342,33 @@ fn selected_frame_range(
     Ok((start, end))
 }
 
+fn selected_frame_indices(
+    frame_count: usize,
+    start: Option<usize>,
+    end: Option<usize>,
+    indices: Option<&[usize]>,
+) -> Result<Vec<usize>, String> {
+    if let Some(indices) = indices {
+        if indices.is_empty() {
+            return Err("Cannot export an empty Spatial3D PNG frame index selection".to_owned());
+        }
+        if indices.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(
+                "Spatial3D PNG frame indices must be strictly increasing and unique".to_owned(),
+            );
+        }
+        if indices.last().is_some_and(|index| *index >= frame_count) {
+            return Err(format!(
+                "Cannot export Spatial3D PNG frame index {}: timeline has {frame_count} frames",
+                indices.last().unwrap()
+            ));
+        }
+        return Ok(indices.to_vec());
+    }
+    let (start, end) = selected_frame_range(frame_count, start, end)?;
+    Ok((start..=end).collect())
+}
+
 fn waits_for_consumer(
     wait_for_consumer: bool,
     next_frame_index: usize,
@@ -363,6 +395,7 @@ mod tests {
     fn options(
         frame_start: Option<usize>,
         frame_end: Option<usize>,
+        frame_indices: Option<Vec<usize>>,
         wait_for_consumer: bool,
     ) -> NativePngSequenceExportOptions {
         NativePngSequenceExportOptions {
@@ -370,6 +403,7 @@ mod tests {
             timeline_name: TimelineName::new("frame"),
             frame_start,
             frame_end,
+            frame_indices,
             wait_for_consumer,
         }
     }
@@ -381,6 +415,22 @@ mod tests {
         assert!(selected_frame_range(10, Some(7), Some(6)).is_err());
         assert!(selected_frame_range(10, Some(0), Some(10)).is_err());
         assert!(selected_frame_range(0, None, None).is_err());
+    }
+
+    #[test]
+    fn explicit_frame_indices_are_strictly_increasing_and_validated() {
+        assert_eq!(
+            selected_frame_indices(10, None, None, Some(&[0, 3, 9])),
+            Ok(vec![0, 3, 9])
+        );
+        assert!(selected_frame_indices(10, None, None, Some(&[])).is_err());
+        assert!(selected_frame_indices(10, None, None, Some(&[1, 1])).is_err());
+        assert!(selected_frame_indices(10, None, None, Some(&[2, 1])).is_err());
+        assert!(selected_frame_indices(10, None, None, Some(&[0, 10])).is_err());
+        assert_eq!(
+            selected_frame_indices(10, Some(2), Some(4), None),
+            Ok(vec![2, 3, 4])
+        );
     }
 
     #[test]
@@ -398,19 +448,23 @@ mod tests {
     #[test]
     fn recording_retention_is_limited_to_bounded_backpressured_export() {
         assert!(
-            NativePngSequenceExport::new(Some(options(Some(0), Some(9), true)))
+            NativePngSequenceExport::new(Some(options(Some(0), Some(9), None, true)))
                 .retains_recording_for_bounded_export()
         );
         assert!(
-            !NativePngSequenceExport::new(Some(options(None, Some(9), true)))
+            !NativePngSequenceExport::new(Some(options(None, Some(9), None, true)))
                 .retains_recording_for_bounded_export()
         );
         assert!(
-            !NativePngSequenceExport::new(Some(options(Some(0), None, true)))
+            !NativePngSequenceExport::new(Some(options(Some(0), None, None, true)))
                 .retains_recording_for_bounded_export()
         );
         assert!(
-            !NativePngSequenceExport::new(Some(options(Some(0), Some(9), false)))
+            !NativePngSequenceExport::new(Some(options(Some(0), Some(9), None, false)))
+                .retains_recording_for_bounded_export()
+        );
+        assert!(
+            NativePngSequenceExport::new(Some(options(None, None, Some(vec![0, 3, 9]), true)))
                 .retains_recording_for_bounded_export()
         );
     }

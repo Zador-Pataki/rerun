@@ -225,6 +225,19 @@ When persisted, the state will be stored at the following locations:
     )]
     export_spatial_view_3d_png_sequence_end: Option<usize>,
 
+    /// File containing the exact source frame indices to export, one per line.
+    #[cfg(feature = "native_viewer")]
+    #[clap(
+        long,
+        value_name = "PATH",
+        requires = "export_spatial_view_3d_png_sequence_to",
+        conflicts_with_all = [
+            "export_spatial_view_3d_png_sequence_start",
+            "export_spatial_view_3d_png_sequence_end"
+        ]
+    )]
+    export_spatial_view_3d_png_sequence_indices_file: Option<std::path::PathBuf>,
+
     /// Wait for each exported PNG to be deleted before exporting the next one.
     #[cfg(feature = "native_viewer")]
     #[clap(long, requires = "export_spatial_view_3d_png_sequence_to")]
@@ -738,6 +751,12 @@ fn run_impl(
     let startup_options = {
         re_tracing::profile_scope!("StartupOptions");
 
+        let export_frame_indices = args
+            .export_spatial_view_3d_png_sequence_indices_file
+            .as_deref()
+            .map(read_frame_indices)
+            .transpose()?;
+
         let video_decoder_hw_acceleration =
             args.video_decoder.as_ref().and_then(|s| match s.parse() {
                 Err(()) => {
@@ -774,6 +793,7 @@ fn run_impl(
                         re_log_types::TimelineName::new(timeline),
                         args.export_spatial_view_3d_png_sequence_start,
                         args.export_spatial_view_3d_png_sequence_end,
+                        export_frame_indices.clone(),
                         args.export_spatial_view_3d_png_sequence_wait_for_consumer,
                     )
                 }),
@@ -1226,6 +1246,25 @@ fn run_profiler(args: &Args) -> re_tracing::Profiler {
         profiler.start();
     }
     profiler
+}
+
+#[cfg(feature = "native_viewer")]
+fn read_frame_indices(path: &std::path::Path) -> anyhow::Result<Vec<usize>> {
+    let contents = std::fs::read_to_string(path).map_err(|err| {
+        anyhow::anyhow!("Failed to read Spatial3D PNG frame index file {path:?}: {err}")
+    })?;
+    contents
+        .lines()
+        .enumerate()
+        .map(|(line, value)| {
+            value.trim().parse::<usize>().map_err(|err| {
+                anyhow::anyhow!(
+                    "Invalid Spatial3D PNG frame index at {path:?}:{}: {err}",
+                    line + 1
+                )
+            })
+        })
+        .collect()
 }
 
 #[cfg(feature = "native_viewer")]

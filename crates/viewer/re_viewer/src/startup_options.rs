@@ -8,6 +8,7 @@ pub struct SpatialView3dPngSequenceExportOptions {
     pub timeline: re_log_types::TimelineName,
     pub frame_start: Option<usize>,
     pub frame_end: Option<usize>,
+    pub frame_indices: Option<Vec<usize>>,
     pub wait_for_consumer: bool,
 }
 
@@ -155,6 +156,7 @@ impl StartupOptions {
         timeline: re_log_types::TimelineName,
         frame_start: Option<usize>,
         frame_end: Option<usize>,
+        frame_indices: Option<Vec<usize>>,
         wait_for_consumer: bool,
     ) -> SpatialView3dPngSequenceExportOptions {
         SpatialView3dPngSequenceExportOptions {
@@ -162,6 +164,7 @@ impl StartupOptions {
             timeline,
             frame_start,
             frame_end,
+            frame_indices,
             wait_for_consumer,
         }
     }

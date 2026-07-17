@@ -179,6 +179,7 @@ struct LineStripBatch {
     bind_group: GpuBindGroup,
     vertex_range: Range<u32>,
     active_phases: EnumSet<DrawPhase>,
+    draw_order: f32,
 }
 
 /// A line drawing operation. Encompasses several lines, each consisting of a list of positions.
@@ -278,6 +279,12 @@ pub struct LineBatchInfo {
     /// Depth offset applied after projection.
     pub depth_offset: DepthOffset,
 
+    /// Painter's order used for batches rendered without depth testing.
+    pub draw_order: f32,
+
+    /// Render this batch after opaque geometry without depth testing.
+    pub always_on_top: bool,
+
     /// Length factor as multiple of a line's radius applied to all triangle caps in this batch.
     ///
     /// This controls how far the "pointy end" of the triangle/arrow-head extends.
@@ -301,6 +308,8 @@ impl Default for LineBatchInfo {
             additional_outline_mask_ids_vertex_ranges: Vec::new(),
             picking_object_id: PickingLayerObjectId::default(),
             depth_offset: 0,
+            draw_order: 0.0,
+            always_on_top: false,
             triangle_cap_length_factor: 4.0,
             triangle_cap_width_factor: 2.0,
         }
@@ -480,7 +489,11 @@ impl LineDrawData {
                 let line_vertex_range_end = (start_vertex_for_next_batch
                     + batch_info.line_vertex_count)
                     .min(max_num_vertices as u32);
-                let mut active_phases = enum_set![DrawPhase::Opaque | DrawPhase::PickingLayer];
+                let mut active_phases = if batch_info.always_on_top {
+                    enum_set![DrawPhase::Transparent | DrawPhase::PickingLayer]
+                } else {
+                    enum_set![DrawPhase::Opaque | DrawPhase::PickingLayer]
+                };
                 // Does the entire batch participate in the outline mask phase?
                 if batch_info.overall_outline_mask_ids.is_some() {
                     active_phases.insert(DrawPhase::OutlineMask);
@@ -492,6 +505,7 @@ impl LineDrawData {
                     uniform_buffer_binding,
                     start_vertex_for_next_batch..line_vertex_range_end,
                     active_phases,
+                    batch_info.draw_order,
                 ));
 
                 for (range, _) in &batch_info.additional_outline_mask_ids_vertex_ranges {
@@ -501,11 +515,13 @@ impl LineDrawData {
                         uniform_buffer_bindings_mask_only_batches.next().unwrap(),
                         range.clone(),
                         enum_set![DrawPhase::OutlineMask],
+                        batch_info.draw_order,
                     ));
                 }
 
                 start_vertex_for_next_batch = line_vertex_range_end;
             }
+            batches_internal.sort_by(|left, right| left.draw_order.total_cmp(&right.draw_order));
         }
 
         Ok(Self {
@@ -518,6 +534,7 @@ impl LineDrawData {
 
 pub struct LineRenderer {
     render_pipeline_color: GpuRenderPipelineHandle,
+    render_pipeline_always_on_top: GpuRenderPipelineHandle,
     render_pipeline_picking_layer: GpuRenderPipelineHandle,
     render_pipeline_outline_mask: GpuRenderPipelineHandle,
     bind_group_layout_all_lines: GpuBindGroupLayoutHandle,
@@ -532,6 +549,7 @@ impl LineRenderer {
         uniform_buffer_binding: BindGroupEntry,
         line_vertex_range: Range<u32>,
         active_phases: EnumSet<DrawPhase>,
+        draw_order: f32,
     ) -> LineStripBatch {
         // TODO(andreas): There should be only a single bindgroup with dynamic indices for all batches.
         //                  (each batch would then know which dynamic indices to use in the bindgroup)
@@ -552,6 +570,7 @@ impl LineRenderer {
             // so just from a number-of=vertices perspective this is correct already and the shader can take care of offsets.
             vertex_range: (line_vertex_range.start * 6)..(line_vertex_range.end * 6),
             active_phases,
+            draw_order,
         }
     }
 }
@@ -562,6 +581,7 @@ impl Renderer for LineRenderer {
     fn participated_phases() -> &'static [DrawPhase] {
         &[
             DrawPhase::Opaque,
+            DrawPhase::Transparent,
             DrawPhase::OutlineMask,
             DrawPhase::PickingLayer,
         ]
@@ -677,6 +697,25 @@ impl Renderer for LineRenderer {
         };
         let render_pipeline_color =
             render_pipelines.get_or_create(ctx, &render_pipeline_desc_color);
+        let render_pipeline_always_on_top = render_pipelines.get_or_create(
+            ctx,
+            &RenderPipelineDesc {
+                label: "LineRenderer::render_pipeline_always_on_top".into(),
+                fragment_entrypoint: "fs_main_always_on_top".into(),
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: ViewBuilder::MAIN_TARGET_DEPTH_FORMAT,
+                    depth_compare: wgpu::CompareFunction::Always,
+                    depth_write_enabled: false,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: ViewBuilder::main_target_default_msaa_state(
+                    ctx.render_config(),
+                    false,
+                ),
+                ..render_pipeline_desc_color.clone()
+            },
+        );
         let render_pipeline_picking_layer = render_pipelines.get_or_create(
             ctx,
             &RenderPipelineDesc {
@@ -711,6 +750,7 @@ impl Renderer for LineRenderer {
 
         Self {
             render_pipeline_color,
+            render_pipeline_always_on_top,
             render_pipeline_picking_layer,
             render_pipeline_outline_mask,
             bind_group_layout_all_lines,
@@ -731,6 +771,10 @@ impl Renderer for LineRenderer {
                 &draw_data.bind_group_all_lines_outline_mask,
             ),
             DrawPhase::Opaque => (self.render_pipeline_color, &draw_data.bind_group_all_lines),
+            DrawPhase::Transparent => (
+                self.render_pipeline_always_on_top,
+                &draw_data.bind_group_all_lines,
+            ),
             DrawPhase::PickingLayer => (
                 self.render_pipeline_picking_layer,
                 &draw_data.bind_group_all_lines,
