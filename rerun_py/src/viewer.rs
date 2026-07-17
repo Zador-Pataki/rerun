@@ -65,6 +65,19 @@ impl PyViewerClientInternal {
 
         conn.save_screenshot(py, file_path, view_id_str)
     }
+
+    #[pyo3(signature = (time, *, timeline=None, play=false))]
+    fn set_time_cursor(
+        self_: Py<Self>,
+        time: i64,
+        timeline: Option<String>,
+        play: bool,
+        py: Python<'_>,
+    ) -> PyResult<()> {
+        let mut conn = self_.borrow(py).conn.clone();
+
+        conn.set_time_cursor(py, time, timeline, play)
+    }
 }
 
 /// Connection handle to the message proxy service.
@@ -120,13 +133,33 @@ impl ViewerConnectionHandle {
         file_path: String,
         view_id: Option<String>,
     ) -> PyResult<()> {
-        wait_for_future(
-            py,
-            self.control_client.save_screenshot(
-                re_protos::sdk_comms::v1alpha1::SaveScreenshotRequest { view_id, file_path },
-            ),
-        )
-        .map_err(to_py_err)?;
+        let mut request =
+            tonic::Request::new(re_protos::sdk_comms::v1alpha1::SaveScreenshotRequest {
+                view_id,
+                file_path,
+            });
+        request.set_timeout(std::time::Duration::from_secs(35));
+        wait_for_future(py, self.control_client.save_screenshot(request)).map_err(to_py_err)?;
+
+        Ok(())
+    }
+
+    fn set_time_cursor(
+        &mut self,
+        py: Python<'_>,
+        time: i64,
+        timeline: Option<String>,
+        play: bool,
+    ) -> PyResult<()> {
+        let mut request =
+            tonic::Request::new(re_protos::sdk_comms::v1alpha1::SetTimeCursorRequest {
+                store_id: None,
+                timeline: timeline.map(|name| re_protos::common::v1alpha1::Timeline { name }),
+                time: Some(re_protos::common::v1alpha1::TimelineTime { time }),
+                play,
+            });
+        request.set_timeout(std::time::Duration::from_secs(35));
+        wait_for_future(py, self.control_client.set_time_cursor(request)).map_err(to_py_err)?;
 
         Ok(())
     }

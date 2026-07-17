@@ -125,6 +125,12 @@ fn handle_pending_screenshots(harness: &mut egui_kittest::Harness<'_, App>) {
         Ok(rgba) => rgba,
         Err(err) => {
             re_log::error!("Failed to render headless screenshot: {err}");
+            let reason = err.clone();
+            for user_data in pending {
+                harness
+                    .state_mut()
+                    .process_screenshot_error(&user_data, reason.clone());
+            }
             return;
         }
     };

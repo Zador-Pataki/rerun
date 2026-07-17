@@ -67,7 +67,7 @@ base = ["native_viewer", "map_view", "oss_server", "perf_telemetry"]
 ## The features we enable when we build the pre-built binaries during our releases,
 ## but excluding the web viewer.
 ## This may enable features that require extra build tools that not everyone has.
-release_no_web_viewer = ["base", "lance", "nasm"]
+release_no_web_viewer = ["base", "lance", "nasm", "videosfm_playback"]
 
 ## The features we enable when we build the pre-built binaries during our releases.
 ## These are the binaries we put in our release artifacts, and bundle in our Python wheel.
@@ -99,6 +99,9 @@ lance = ["re_server/lance"]
 ##
 ## This only works on native, and only with `TELEMETRY_ENABLED` set.
 perf_telemetry = ["rerun/perf_telemetry"]
+
+## Marks a CLI built with the matching VideoSfM playback viewer extensions.
+videosfm_playback = []
 
 ## Support serving a web viewer over HTTP.
 ##

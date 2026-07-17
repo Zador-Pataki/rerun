@@ -29,6 +29,8 @@ impl viewer_control_service_server::ViewerControlService for ViewerControl {
         &self,
         request: tonic::Request<SaveScreenshotRequest>,
     ) -> tonic::Result<tonic::Response<SaveScreenshotResponse>> {
+        const SCREENSHOT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
         let SaveScreenshotRequest { view_id, file_path } = request.into_inner();
         let (done_tx, mut done_rx) =
             futures::channel::mpsc::unbounded::<Result<(), SaveScreenshotError>>();
@@ -39,17 +41,25 @@ impl viewer_control_service_server::ViewerControlService for ViewerControl {
         })
         .await;
 
-        match done_rx.next().await {
-            Some(Ok(())) => Ok(tonic::Response::new(SaveScreenshotResponse {})),
-            Some(Err(err @ SaveScreenshotError::InvalidViewId { .. })) => {
+        match tokio::time::timeout(SCREENSHOT_TIMEOUT, done_rx.next()).await {
+            Ok(Some(Ok(()))) => Ok(tonic::Response::new(SaveScreenshotResponse {})),
+            Ok(Some(Err(err @ SaveScreenshotError::InvalidViewId { .. }))) => {
                 Err(tonic::Status::invalid_argument(err.to_string()))
             }
-            Some(Err(
+            Ok(Some(Err(
+                err @ (SaveScreenshotError::ViewNotReady { .. }
+                | SaveScreenshotError::ViewTooSmall { .. }),
+            ))) => Err(tonic::Status::failed_precondition(err.to_string())),
+            Ok(Some(Err(
                 err @ (SaveScreenshotError::InvalidImageData
+                | SaveScreenshotError::RenderFailed { .. }
                 | SaveScreenshotError::SaveToPathFailed { .. }),
-            )) => Err(tonic::Status::internal(err.to_string())),
-            None => Err(tonic::Status::internal(
+            ))) => Err(tonic::Status::internal(err.to_string())),
+            Ok(None) => Err(tonic::Status::internal(
                 "Screenshot completion signal was dropped before the screenshot was taken",
+            )),
+            Err(_) => Err(tonic::Status::deadline_exceeded(
+                "viewer did not finish the screenshot request in time",
             )),
         }
     }
@@ -58,6 +68,8 @@ impl viewer_control_service_server::ViewerControlService for ViewerControl {
         &self,
         request: tonic::Request<SetTimeCursorRequest>,
     ) -> tonic::Result<tonic::Response<SetTimeCursorResponse>> {
+        const SET_TIME_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
         let SetTimeCursorRequest {
             store_id: recording,
             timeline,
@@ -84,11 +96,14 @@ impl viewer_control_service_server::ViewerControlService for ViewerControl {
         })
         .await;
 
-        match done_rx.next().await {
-            Some(Ok(response)) => Ok(tonic::Response::new(response)),
-            Some(Err(err)) => Err(tonic::Status::invalid_argument(err)),
-            None => Err(tonic::Status::internal(
+        match tokio::time::timeout(SET_TIME_TIMEOUT, done_rx.next()).await {
+            Ok(Some(Ok(response))) => Ok(tonic::Response::new(response)),
+            Ok(Some(Err(err))) => Err(tonic::Status::invalid_argument(err)),
+            Ok(None) => Err(tonic::Status::internal(
                 "viewer dropped the set-time request before responding (is a viewer running?)",
+            )),
+            Err(_) => Err(tonic::Status::deadline_exceeded(
+                "viewer did not answer the set-time request in time",
             )),
         }
     }

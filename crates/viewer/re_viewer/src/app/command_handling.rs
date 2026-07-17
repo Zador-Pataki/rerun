@@ -706,6 +706,19 @@ impl App {
                         let rect = rect.shrink(2.5); // Hacky: Shrink so we don't accidentally include the border of the view.
                         if !rect.is_positive() {
                             re_log::warn!("View too small for a screenshot");
+                            if let re_viewer_context::ScreenshotTarget::SaveToPath(file_path) =
+                                &target
+                                && let Some(on_done) =
+                                    self.pending_screenshot_notifiers.remove(file_path)
+                            {
+                                on_done
+                                    .unbounded_send(Err(
+                                        re_log_channel::SaveScreenshotError::ViewTooSmall {
+                                            view_id: view_id.to_string(),
+                                        },
+                                    ))
+                                    .ok();
+                            }
                             return;
                         }
 
@@ -721,6 +734,18 @@ impl App {
                             ));
                     } else {
                         re_log::warn!("View {view_id} not found for screenshot");
+                        if let re_viewer_context::ScreenshotTarget::SaveToPath(file_path) = &target
+                            && let Some(on_done) =
+                                self.pending_screenshot_notifiers.remove(file_path)
+                        {
+                            on_done
+                                .unbounded_send(Err(
+                                    re_log_channel::SaveScreenshotError::ViewNotReady {
+                                        view_id: view_id.to_string(),
+                                    },
+                                ))
+                                .ok();
+                        }
                     }
                 } else {
                     // Screenshot the entire viewer

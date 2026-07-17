@@ -7,6 +7,7 @@ import socket
 import sys
 import time
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 import pytest
 import rerun as rr
@@ -84,6 +85,43 @@ def test_save_screenshot(tmp_path: Path) -> None:
         # PNG magic number: 89 50 4E 47 0D 0A 1A 0A
         with out.open("rb") as f:
             assert f.read(8) == b"\x89PNG\r\n\x1a\n"
+
+
+def test_set_time_cursor_before_screenshot(tmp_path: Path) -> None:
+    """Sequential cursor and screenshot RPCs render the requested recording time."""
+    port = _find_free_port()
+
+    with ViewerClient.spawn(headless=True, port=port, hide_welcome_screen=True) as viewer:
+        rec = rr.RecordingStream("rerun_example_headless_seek_test")
+        rec.connect_grpc(url=viewer.url)
+        rec.set_time("frame", sequence=0)
+        rec.log("point", rr.Points3D([[0, 0, 0]], colors=[255, 0, 0], radii=0.25))
+        rec.set_time("frame", sequence=1)
+        rec.log("point", rr.Points3D([[0, 0, 0]], colors=[0, 255, 0], radii=0.25))
+        rec.flush()
+
+        first = tmp_path / "first.png"
+        second = tmp_path / "second.png"
+        viewer.set_time_cursor(0, timeline="frame")
+        viewer.save_screenshot(str(first))
+        viewer.set_time_cursor(1, timeline="frame")
+        viewer.save_screenshot(str(second))
+
+        assert first.read_bytes() != second.read_bytes()
+
+
+def test_missing_view_screenshot_fails(tmp_path: Path) -> None:
+    """A targeted screenshot must fail instead of leaving its RPC pending forever."""
+    port = _find_free_port()
+
+    with ViewerClient.spawn(headless=True, port=port, hide_welcome_screen=True) as viewer:
+        rec = rr.RecordingStream("rerun_example_headless_missing_view_test")
+        rec.connect_grpc(url=viewer.url)
+        rec.log("point", rr.Points3D([[0, 0, 0]]))
+        rec.flush()
+
+        with pytest.raises(ConnectionError, match="not ready"):
+            viewer.save_screenshot(str(tmp_path / "missing.png"), UUID("305fe839-7f79-47af-8f9f-c0d5e87ea1d2"))
 
 
 def test_viewer_dies_on_client_close() -> None:
