@@ -75,3 +75,4 @@ uint8
 
 * [`DepthImage`](../archetypes/depth_image.md)
 * [`LineStrips3D`](../archetypes/line_strips3d.md)
+* [`Pinhole`](../archetypes/pinhole.md)

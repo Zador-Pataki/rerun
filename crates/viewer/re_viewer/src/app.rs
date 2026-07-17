@@ -16,9 +16,9 @@ use re_viewer_context::{
     command_channel,
     store_hub::{BlueprintPersistence, StoreHub, StoreHubStats},
     AppOptions, AsyncRuntimeHandle, BlueprintUndoState, CommandReceiver, CommandSender,
-    ComponentUiRegistry, DisplayMode, Item, PlayState, RecordingConfig, StorageContext,
-    StoreContext, StoreHubEntry, SystemCommand, SystemCommandSender as _, TableStore, ViewClass,
-    ViewClassRegistry, ViewClassRegistryError,
+    ComponentUiRegistry, DisplayMode, Item, NativePngSequenceExportFrameRequest, PlayState,
+    RecordingConfig, StorageContext, StoreContext, StoreHubEntry, SystemCommand,
+    SystemCommandSender as _, TableStore, ViewClass, ViewClassRegistry, ViewClassRegistryError,
 };
 
 use crate::startup_options::StartupOptions;
@@ -67,6 +67,8 @@ pub struct App {
     ram_limit_warner: re_memory::RamLimitWarner,
     pub(crate) egui_ctx: egui::Context,
     screenshotter: crate::screenshotter::Screenshotter,
+    #[cfg(not(target_arch = "wasm32"))]
+    native_png_sequence_export: crate::native_png_sequence_export::NativePngSequenceExport,
 
     #[cfg(target_arch = "wasm32")]
     pub(crate) popstate_listener: Option<crate::history::PopstateListener>,
@@ -201,6 +203,13 @@ impl App {
         if let Some(video_decoder_hw_acceleration) = startup_options.video_decoder_hw_acceleration {
             state.app_options.video_decoder_hw_acceleration = video_decoder_hw_acceleration;
         }
+        state.app_options.force_spatial_view_3d_eye_from_camera = startup_options
+            .force_spatial_view_3d_eye_from_camera
+            .clone();
+        state.app_options.force_spatial_view_3d_projection =
+            startup_options.force_spatial_view_3d_projection;
+        state.app_options.force_spatial_view_3d_orthographic_scale =
+            startup_options.force_spatial_view_3d_orthographic_scale;
 
         let mut view_class_registry = ViewClassRegistry::default();
         if let Err(err) = populate_view_class_registry_with_builtin(&mut view_class_registry) {
@@ -217,6 +226,23 @@ impl App {
         if let Some(screenshot_path) = startup_options.screenshot_to_path_then_quit.clone() {
             screenshotter.screenshot_to_path_then_quit(&creation_context.egui_ctx, screenshot_path);
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        let native_png_sequence_export =
+            crate::native_png_sequence_export::NativePngSequenceExport::new(
+                startup_options
+                    .spatial_view_3d_png_sequence_export
+                    .clone()
+                    .map(|options| {
+                        crate::native_png_sequence_export::NativePngSequenceExportOptions {
+                            output_dir: options.output_dir,
+                            timeline_name: options.timeline,
+                            frame_start: options.frame_start,
+                            frame_end: options.frame_end,
+                            frame_indices: options.frame_indices,
+                            wait_for_consumer: options.wait_for_consumer,
+                        }
+                    }),
+            );
 
         let (command_sender, command_receiver) = command_channel;
 
@@ -276,6 +302,8 @@ impl App {
             ram_limit_warner: re_memory::RamLimitWarner::warn_at_fraction_of_max(0.75),
             egui_ctx: creation_context.egui_ctx.clone(),
             screenshotter,
+            #[cfg(not(target_arch = "wasm32"))]
+            native_png_sequence_export,
 
             #[cfg(target_arch = "wasm32")]
             popstate_listener: None,
@@ -1293,6 +1321,7 @@ impl App {
         store_context: Option<&StoreContext<'_>>,
         storage_context: &StorageContext<'_>,
         store_stats: Option<&StoreHubStats>,
+        native_png_sequence_export_request: Option<&NativePngSequenceExportFrameRequest>,
     ) {
         let mut main_panel_frame = egui::Frame::default();
         if re_ui::CUSTOM_WINDOW_DECORATIONS {
@@ -1341,6 +1370,8 @@ impl App {
                             .on_frame_start(&self.async_runtime, &self.egui_ctx);
 
                         render_ctx.begin_frame();
+                        #[cfg(not(target_arch = "wasm32"))]
+                        self.native_png_sequence_export.drain_readbacks(render_ctx);
                         self.state.show(
                             app_blueprint,
                             ui,
@@ -1358,6 +1389,7 @@ impl App {
                             },
                             is_history_enabled,
                             self.event_dispatcher.as_ref(),
+                            native_png_sequence_export_request,
                         );
                         render_ctx.before_submit();
                     }
@@ -1609,6 +1641,14 @@ impl App {
 
     fn purge_memory_if_needed(&mut self, store_hub: &mut StoreHub) {
         re_tracing::profile_function!();
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if self
+            .native_png_sequence_export
+            .retains_recording_for_bounded_export()
+        {
+            return;
+        }
 
         fn format_limit(limit: Option<i64>) -> String {
             if let Some(bytes) = limit {
@@ -2059,6 +2099,12 @@ impl eframe::App for App {
             }
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.native_png_sequence_export.should_close() {
+            egui_ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
+
         // Temporarily take the `StoreHub` out of the Viewer so it doesn't interfere with mutability
         let mut store_hub = self
             .store_hub
@@ -2076,6 +2122,10 @@ impl eframe::App for App {
         if self.screenshotter.update(egui_ctx).quit {
             egui_ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.native_png_sequence_export.is_enabled() {
+            egui_ctx.request_repaint();
         }
 
         if self.startup_options.memory_limit.is_unlimited() {
@@ -2198,6 +2248,16 @@ impl eframe::App for App {
             }
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
+        let native_png_sequence_export_request =
+            store_hub.active_recording().and_then(|recording| {
+                let rec_cfg = self.state.recording_config_mut(recording);
+                self.native_png_sequence_export
+                    .prepare_frame(recording, rec_cfg)
+            });
+        #[cfg(target_arch = "wasm32")]
+        let native_png_sequence_export_request = None;
+
         {
             let (storage_context, store_context) = store_hub.read_context();
 
@@ -2225,7 +2285,14 @@ impl eframe::App for App {
                 store_context.as_ref(),
                 &storage_context,
                 store_stats.as_ref(),
+                native_png_sequence_export_request.as_ref(),
             );
+
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(request) = &native_png_sequence_export_request {
+                self.native_png_sequence_export
+                    .validate_frame_request(request);
+            }
 
             if re_ui::CUSTOM_WINDOW_DECORATIONS {
                 // Paint the main window frame on top of everything else

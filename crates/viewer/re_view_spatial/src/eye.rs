@@ -21,6 +21,9 @@ pub struct Eye {
 
     /// If no angle is present, this is an orthographic camera.
     pub fov_y: Option<f32>,
+
+    /// Vertical world size used when [`Self::fov_y`] is `None`.
+    pub orthographic_vertical_world_size: Option<f32>,
 }
 
 impl Eye {
@@ -35,7 +38,14 @@ impl Eye {
         Some(Self {
             world_from_rub_view: space_cameras.world_from_rub_view()?,
             fov_y: Some(fov_y),
+            orthographic_vertical_world_size: None,
         })
+    }
+
+    pub fn with_orthographic_projection(mut self, vertical_world_size: f32) -> Self {
+        self.fov_y = None;
+        self.orthographic_vertical_world_size = Some(vertical_world_size);
+        self
     }
 
     pub fn near(&self) -> f32 {
@@ -60,11 +70,15 @@ impl Eye {
         let projection = if let Some(fov_y) = self.fov_y {
             Mat4::perspective_infinite_rh(fov_y, aspect_ratio, self.near())
         } else {
+            let vertical_world_size = self
+                .orthographic_vertical_world_size
+                .unwrap_or_else(|| space2d_rect.height().at_least(1.0));
+            let horizontal_world_size = vertical_world_size * aspect_ratio;
             Mat4::orthographic_rh(
-                space2d_rect.left(),
-                space2d_rect.right(),
-                space2d_rect.bottom(),
-                space2d_rect.top(),
+                -0.5 * horizontal_world_size,
+                0.5 * horizontal_world_size,
+                -0.5 * vertical_world_size,
+                0.5 * vertical_world_size,
                 self.near(),
                 self.far(),
             )
@@ -99,11 +113,19 @@ impl Eye {
             re_math::Ray3::from_origin_dir(self.pos_in_world(), ray_dir.normalize_or_zero())
         } else {
             // The ray originates on the camera plane, not from the camera position
-            let ray_dir = self.world_from_rub_view.rotation().mul_vec3(glam::Vec3::Z);
+            let ray_dir = self.world_from_rub_view.rotation().mul_vec3(-glam::Vec3::Z);
+            let (w, h) = (screen_rect.width(), screen_rect.height());
+            let aspect_ratio = w / h;
+            let vertical_world_size = self
+                .orthographic_vertical_world_size
+                .unwrap_or_else(|| h.at_least(1.0));
+            let horizontal_world_size = vertical_world_size * aspect_ratio;
+            let x = (pointer.x - screen_rect.center().x) / w * horizontal_world_size;
+            let y = (screen_rect.center().y - pointer.y) / h * vertical_world_size;
             let origin = self.world_from_rub_view.translation()
-                + self.world_from_rub_view.rotation().mul_vec3(glam::Vec3::X) * pointer.x
-                + self.world_from_rub_view.rotation().mul_vec3(glam::Vec3::Y) * pointer.y
-                + ray_dir * self.near();
+                + self.world_from_rub_view.rotation().mul_vec3(glam::Vec3::X) * x
+                + self.world_from_rub_view.rotation().mul_vec3(glam::Vec3::Y) * y
+                - ray_dir * self.far();
 
             re_math::Ray3::from_origin_dir(origin, ray_dir)
         }
@@ -144,6 +166,15 @@ impl Eye {
         Self {
             world_from_rub_view: IsoTransform::from_rotation_translation(rotation, translation),
             fov_y,
+            orthographic_vertical_world_size: match (
+                self.orthographic_vertical_world_size,
+                other.orthographic_vertical_world_size,
+            ) {
+                (Some(a), Some(b)) => Some(egui::lerp(a..=b, t)),
+                (Some(a), None) => Some(a),
+                (None, Some(b)) => Some(b),
+                (None, None) => None,
+            },
         }
     }
 }
@@ -288,6 +319,7 @@ impl ViewEye {
                 self.position(),
             ),
             fov_y: Some(self.fov_y),
+            orthographic_vertical_world_size: None,
         }
     }
 

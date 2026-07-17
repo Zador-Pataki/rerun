@@ -1,9 +1,23 @@
 use std::path::PathBuf;
 
+use re_log_types::EntityPath;
 use re_log_types::TimestampFormat;
 use re_video::decode::{DecodeHardwareAcceleration, DecodeSettings};
 
 const MAPBOX_ACCESS_TOKEN_ENV_VAR: &str = "RERUN_MAPBOX_ACCESS_TOKEN";
+
+/// Projection mode used by Spatial3D views.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum SpatialView3dProjection {
+    Perspective,
+    Orthographic,
+}
+
+impl Default for SpatialView3dProjection {
+    fn default() -> Self {
+        Self::Perspective
+    }
+}
 
 /// Global options for the viewer.
 #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -64,6 +78,18 @@ pub struct AppOptions {
     /// see [`AppOptions::cache_subdirectory`].
     #[cfg(not(target_arch = "wasm32"))]
     pub cache_directory: Option<std::path::PathBuf>,
+
+    /// Force 3D spatial views to render from this logged camera entity.
+    #[serde(skip)]
+    pub force_spatial_view_3d_eye_from_camera: Option<EntityPath>,
+
+    /// Force 3D spatial views to use a specific projection mode.
+    #[serde(skip)]
+    pub force_spatial_view_3d_projection: Option<SpatialView3dProjection>,
+
+    /// Force the orthographic vertical world size for 3D spatial views.
+    #[serde(skip)]
+    pub force_spatial_view_3d_orthographic_scale: Option<f32>,
 }
 
 impl Default for AppOptions {
@@ -92,6 +118,10 @@ impl Default for AppOptions {
 
             #[cfg(not(target_arch = "wasm32"))]
             cache_directory: Self::default_cache_directory(),
+
+            force_spatial_view_3d_eye_from_camera: None,
+            force_spatial_view_3d_projection: None,
+            force_spatial_view_3d_orthographic_scale: None,
         }
     }
 }

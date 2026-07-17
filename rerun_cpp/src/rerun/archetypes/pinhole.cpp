@@ -27,12 +27,19 @@ namespace rerun::archetypes {
             ComponentBatch::empty<rerun::components::Color>(Descriptor_color).value_or_throw();
         archetype.radius =
             ComponentBatch::empty<rerun::components::Radius>(Descriptor_radius).value_or_throw();
+        archetype.scalar =
+            ComponentBatch::empty<rerun::components::Scalar>(Descriptor_scalar).value_or_throw();
+        archetype.scalar_range =
+            ComponentBatch::empty<rerun::components::ValueRange>(Descriptor_scalar_range)
+                .value_or_throw();
+        archetype.colormap = ComponentBatch::empty<rerun::components::Colormap>(Descriptor_colormap)
+                                 .value_or_throw();
         return archetype;
     }
 
     Collection<ComponentColumn> Pinhole::columns(const Collection<uint32_t>& lengths_) {
         std::vector<ComponentColumn> columns;
-        columns.reserve(7);
+        columns.reserve(10);
         if (image_from_camera.has_value()) {
             columns.push_back(image_from_camera.value().partitioned(lengths_).value_or_throw());
         }
@@ -50,6 +57,15 @@ namespace rerun::archetypes {
         }
         if (radius.has_value()) {
             columns.push_back(radius.value().partitioned(lengths_).value_or_throw());
+        }
+        if (scalar.has_value()) {
+            columns.push_back(scalar.value().partitioned(lengths_).value_or_throw());
+        }
+        if (scalar_range.has_value()) {
+            columns.push_back(scalar_range.value().partitioned(lengths_).value_or_throw());
+        }
+        if (colormap.has_value()) {
+            columns.push_back(colormap.value().partitioned(lengths_).value_or_throw());
         }
         columns.push_back(
             ComponentColumn::from_indicators<Pinhole>(static_cast<uint32_t>(lengths_.size()))
@@ -77,6 +93,15 @@ namespace rerun::archetypes {
         if (radius.has_value()) {
             return columns(std::vector<uint32_t>(radius.value().length(), 1));
         }
+        if (scalar.has_value()) {
+            return columns(std::vector<uint32_t>(scalar.value().length(), 1));
+        }
+        if (scalar_range.has_value()) {
+            return columns(std::vector<uint32_t>(scalar_range.value().length(), 1));
+        }
+        if (colormap.has_value()) {
+            return columns(std::vector<uint32_t>(colormap.value().length(), 1));
+        }
         return Collection<ComponentColumn>();
     }
 } // namespace rerun::archetypes
@@ -88,7 +113,7 @@ namespace rerun {
     ) {
         using namespace archetypes;
         std::vector<ComponentBatch> cells;
-        cells.reserve(7);
+        cells.reserve(10);
 
         if (archetype.image_from_camera.has_value()) {
             cells.push_back(archetype.image_from_camera.value());
@@ -107,6 +132,15 @@ namespace rerun {
         }
         if (archetype.radius.has_value()) {
             cells.push_back(archetype.radius.value());
+        }
+        if (archetype.scalar.has_value()) {
+            cells.push_back(archetype.scalar.value());
+        }
+        if (archetype.scalar_range.has_value()) {
+            cells.push_back(archetype.scalar_range.value());
+        }
+        if (archetype.colormap.has_value()) {
+            cells.push_back(archetype.colormap.value());
         }
         {
             auto result = ComponentBatch::from_indicator<Pinhole>();

@@ -23,6 +23,7 @@
 #include "blueprint/archetypes/tensor_view_fit.hpp"
 #include "blueprint/archetypes/view_blueprint.hpp"
 #include "blueprint/archetypes/view_contents.hpp"
+#include "blueprint/archetypes/view_projection3d.hpp"
 #include "blueprint/archetypes/viewport_blueprint.hpp"
 #include "blueprint/archetypes/visible_time_ranges.hpp"
 #include "blueprint/archetypes/visual_bounds2d.hpp"

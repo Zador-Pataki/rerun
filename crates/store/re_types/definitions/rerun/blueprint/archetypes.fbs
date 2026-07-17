@@ -21,6 +21,7 @@ include "./archetypes/tensor_slice_selection.fbs";
 include "./archetypes/tensor_view_fit.fbs";
 include "./archetypes/view_blueprint.fbs";
 include "./archetypes/view_contents.fbs";
+include "./archetypes/view_projection3d.fbs";
 include "./archetypes/viewport_blueprint.fbs";
 include "./archetypes/visible_time_ranges.fbs";
 include "./archetypes/visual_bounds2d.fbs";

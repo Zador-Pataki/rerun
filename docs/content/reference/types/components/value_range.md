@@ -25,4 +25,5 @@ FixedSizeList<2, float64>
 
 * [`DepthImage`](../archetypes/depth_image.md)
 * [`LineStrips3D`](../archetypes/line_strips3d.md)
+* [`Pinhole`](../archetypes/pinhole.md)
 * [`Tensor`](../archetypes/tensor.md)

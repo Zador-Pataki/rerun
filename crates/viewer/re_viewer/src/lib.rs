@@ -9,6 +9,8 @@ mod app_state;
 mod background_tasks;
 pub mod env_vars;
 pub mod event;
+#[cfg(not(target_arch = "wasm32"))]
+mod native_png_sequence_export;
 mod navigation;
 mod saving;
 mod screenshotter;

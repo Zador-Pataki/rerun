@@ -4,7 +4,7 @@ use nohash_hasher::IntSet;
 
 use re_entity_db::EntityDb;
 use re_log_types::{EntityPath, ResolvedEntityPathFilter};
-use re_types::blueprint::archetypes::LineGrid3D;
+use re_types::blueprint::archetypes::{LineGrid3D, ViewProjection3D};
 use re_types::{
     blueprint::archetypes::Background, components::ViewCoordinates, Component as _, View as _,
     ViewClassIdentifier,
@@ -423,6 +423,7 @@ impl ViewClass for SpatialView3D {
         });
 
         re_ui::list_item::list_item_scope(ui, "spatial_view3d_selection_ui", |ui| {
+            view_property_ui::<ViewProjection3D>(ctx, ui, view_id, self, state);
             view_property_ui::<Background>(ctx, ui, view_id, self, state);
             view_property_ui_grid3d(ctx, ui, view_id, self, state);
         });

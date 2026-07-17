@@ -55,7 +55,9 @@ pub use self::{
     file_dialog::santitize_file_name,
     global_context::{
         command_channel, AppOptions, CommandReceiver, CommandSender, ComponentUiRegistry,
-        ComponentUiTypes, DisplayMode, GlobalContext, Item, SystemCommand, SystemCommandSender,
+        ComponentUiTypes, DisplayMode, GlobalContext, Item, NativePngSequenceExportFrameRequest,
+        NativePngSequenceExportReadback, SpatialView3dProjection, SystemCommand,
+        SystemCommandSender, NATIVE_PNG_SEQUENCE_EXPORT_READBACK_ID,
     },
     image_info::{ColormapWithRange, ImageInfo},
     maybe_mut_ref::MaybeMutRef,

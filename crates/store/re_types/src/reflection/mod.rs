@@ -246,6 +246,16 @@ fn generate_component_reflection() -> Result<ComponentReflectionMap, Serializati
             },
         ),
         (
+            <OrthographicScale as Component>::name(),
+            ComponentReflection {
+                docstring_md: "Vertical world size used by an orthographic `Spatial3DView`.\n\n⚠\u{fe0f} **This type is _unstable_ and may change significantly in a way that the data won't be backwards compatible.**",
+                deprecation_summary: None,
+                custom_placeholder: None,
+                datatype: OrthographicScale::arrow_datatype(),
+                verify_arrow_array: OrthographicScale::verify_arrow_array,
+            },
+        ),
+        (
             <PanelState as Component>::name(),
             ComponentReflection {
                 docstring_md: "Tri-state for panel controls.",
@@ -253,6 +263,16 @@ fn generate_component_reflection() -> Result<ComponentReflectionMap, Serializati
                 custom_placeholder: Some(PanelState::default().to_arrow()?),
                 datatype: PanelState::arrow_datatype(),
                 verify_arrow_array: PanelState::verify_arrow_array,
+            },
+        ),
+        (
+            <ProjectionKind3D as Component>::name(),
+            ComponentReflection {
+                docstring_md: "Projection mode used by a `Spatial3DView`.",
+                deprecation_summary: None,
+                custom_placeholder: Some(ProjectionKind3D::default().to_arrow()?),
+                datatype: ProjectionKind3D::arrow_datatype(),
+                verify_arrow_array: ProjectionKind3D::verify_arrow_array,
             },
         ),
         (
@@ -1890,6 +1910,18 @@ fn generate_archetype_reflection() -> ArchetypeReflectionMap {
                     display_name : "Radius", component_name : "rerun.components.Radius"
                     .into(), docstring_md :
                     "Radius used to draw the camera frustum lines in 3D views.\n\nThis is only used for visualization purposes, and does not affect the projection itself.",
+                    is_required : false, }, ArchetypeFieldReflection { name : "scalar",
+                    display_name : "Scalar", component_name : "rerun.components.Scalar"
+                    .into(), docstring_md :
+                    "Optional scalar value used to color the camera frustum in 3D views.\n\nIf present, the spatial viewer maps this value to a color using `scalar_range` and `colormap`.\nThis takes precedence over `color`.",
+                    is_required : false, }, ArchetypeFieldReflection { name :
+                    "scalar_range", display_name : "Scalar range", component_name :
+                    "rerun.components.ValueRange".into(), docstring_md :
+                    "Optional scalar value range used for colormapping `scalar`.\n\nValues outside this range are clamped to the nearest end of the colormap.",
+                    is_required : false, }, ArchetypeFieldReflection { name : "colormap",
+                    display_name : "Colormap", component_name :
+                    "rerun.components.Colormap".into(), docstring_md :
+                    "Optional colormap used for scalar-colored camera frustums.",
                     is_required : false, },
                 ],
             },
@@ -2767,6 +2799,26 @@ fn generate_archetype_reflection() -> ArchetypeReflectionMap {
                     component_name : "rerun.blueprint.components.QueryExpression".into(),
                     docstring_md :
                     "The `QueryExpression` that populates the contents for the view.\n\nThey determine which entities are part of the view.",
+                    is_required : false, },
+                ],
+            },
+        ),
+        (
+            ArchetypeName::new("rerun.blueprint.archetypes.ViewProjection3D"),
+            ArchetypeReflection {
+                display_name: "View projection 3D",
+                deprecation_summary: None,
+                scope: Some("blueprint"),
+                view_types: &[],
+                fields: vec![
+                    ArchetypeFieldReflection { name : "kind", display_name : "Kind",
+                    component_name : "rerun.blueprint.components.ProjectionKind3D"
+                    .into(), docstring_md : "Projection mode used by the 3D view.",
+                    is_required : false, }, ArchetypeFieldReflection { name :
+                    "orthographic_scale", display_name : "Orthographic scale",
+                    component_name : "rerun.blueprint.components.OrthographicScale"
+                    .into(), docstring_md :
+                    "Vertical world size used when the projection is orthographic.\n\nValues less than or equal to zero mean automatic scene fitting.",
                     is_required : false, },
                 ],
             },

@@ -1,6 +1,17 @@
 use crate::app_blueprint::PanelStateOverrides;
 use crate::event::ViewerEventCallback;
 
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone)]
+pub struct SpatialView3dPngSequenceExportOptions {
+    pub output_dir: std::path::PathBuf,
+    pub timeline: re_log_types::TimelineName,
+    pub frame_start: Option<usize>,
+    pub frame_end: Option<usize>,
+    pub frame_indices: Option<Vec<usize>>,
+    pub wait_for_consumer: bool,
+}
+
 /// Settings set once at startup (e.g. via command-line options) and not serialized.
 #[derive(Clone)]
 pub struct StartupOptions {
@@ -20,6 +31,19 @@ pub struct StartupOptions {
     /// We use this to generate screenshots of our examples.
     #[cfg(not(target_arch = "wasm32"))]
     pub screenshot_to_path_then_quit: Option<std::path::PathBuf>,
+
+    /// Force 3D spatial views to render from this logged camera entity.
+    pub force_spatial_view_3d_eye_from_camera: Option<re_log_types::EntityPath>,
+
+    /// Force 3D spatial views to use a specific projection mode.
+    pub force_spatial_view_3d_projection: Option<re_viewer_context::SpatialView3dProjection>,
+
+    /// Force the orthographic vertical world size for 3D spatial views.
+    pub force_spatial_view_3d_orthographic_scale: Option<f32>,
+
+    /// Export the forced 3D spatial view as a native PNG sequence.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub spatial_view_3d_png_sequence_export: Option<SpatialView3dPngSequenceExportOptions>,
 
     /// A user has specifically requested the welcome screen be hidden.
     pub hide_welcome_screen: bool,
@@ -93,6 +117,13 @@ impl Default for StartupOptions {
             #[cfg(not(target_arch = "wasm32"))]
             screenshot_to_path_then_quit: None,
 
+            force_spatial_view_3d_eye_from_camera: None,
+            force_spatial_view_3d_projection: None,
+            force_spatial_view_3d_orthographic_scale: None,
+
+            #[cfg(not(target_arch = "wasm32"))]
+            spatial_view_3d_png_sequence_export: None,
+
             hide_welcome_screen: false,
 
             #[cfg(not(target_arch = "wasm32"))]
@@ -114,6 +145,27 @@ impl Default for StartupOptions {
 
             #[cfg(target_arch = "wasm32")]
             enable_history: false,
+        }
+    }
+}
+
+impl StartupOptions {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn spatial_view_3d_png_sequence_export_options(
+        output_dir: std::path::PathBuf,
+        timeline: re_log_types::TimelineName,
+        frame_start: Option<usize>,
+        frame_end: Option<usize>,
+        frame_indices: Option<Vec<usize>>,
+        wait_for_consumer: bool,
+    ) -> SpatialView3dPngSequenceExportOptions {
+        SpatialView3dPngSequenceExportOptions {
+            output_dir,
+            timeline,
+            frame_start,
+            frame_end,
+            frame_indices,
+            wait_for_consumer,
         }
     }
 }
