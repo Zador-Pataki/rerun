@@ -1001,6 +1001,26 @@ impl App {
         }
     }
 
+    pub(crate) fn process_screenshot_error(&mut self, user_data: &egui::UserData, reason: String) {
+        use re_viewer_context::{ScreenshotInfo, ScreenshotTarget};
+
+        let Some(info) = user_data
+            .data
+            .as_ref()
+            .and_then(|data| data.downcast_ref::<ScreenshotInfo>())
+        else {
+            return;
+        };
+        let ScreenshotTarget::SaveToPath(file_path) = &info.target else {
+            return;
+        };
+        if let Some(notifier) = self.pending_screenshot_notifiers.remove(file_path) {
+            notifier
+                .unbounded_send(Err(SaveScreenshotError::RenderFailed { reason }))
+                .ok();
+        }
+    }
+
     #[allow(clippy::allow_attributes, clippy::needless_pass_by_ref_mut)] // False positive on wasm
     fn process_screenshot_result(
         &mut self,

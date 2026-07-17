@@ -3,8 +3,8 @@ use glam::{Mat4, Quat, Vec3, vec3};
 use macaw::IsoTransform;
 use re_log_types::EntityPath;
 use re_sdk_types::blueprint::archetypes::EyeControls3D;
-use re_sdk_types::blueprint::components::{AngularSpeed, Eye3DKind};
-use re_sdk_types::components::{LinearSpeed, Position3D, Vector3D};
+use re_sdk_types::blueprint::components::{AngularSpeed, Eye3DKind, Eye3DProjection};
+use re_sdk_types::components::{Length, LinearSpeed, Position3D, Vector3D};
 use re_view::controls::{
     DRAG_PAN3D_BUTTON, ROLL_MOUSE, ROLL_MOUSE_ALT, ROLL_MOUSE_MODIFIER, ROTATE3D_BUTTON,
     RuntimeModifiers, SPEED_UP_3D_MODIFIER,
@@ -26,14 +26,37 @@ use crate::scene_bounding_boxes::SceneBoundingBoxes;
 pub struct Eye {
     pub world_from_rub_view: IsoTransform,
 
-    /// If no angle is present, this is an orthographic camera.
+    /// Only set if this is a perspective camera.
     pub fov_y: Option<f32>,
+
+    /// Only set if this is an orthographic camera.
+    pub vertical_world_size: Option<f32>,
 }
 
 impl Eye {
+    /// Only used by perspective projection.
     pub const DEFAULT_FOV_Y: f32 = 55.0_f32 * std::f32::consts::TAU / 360.0;
 
+    /// Only used by orthographic projection.
+    pub const DEFAULT_VERTICAL_WORLD_SIZE: f32 = 10.0;
+    pub const MIN_VERTICAL_WORLD_SIZE: f32 = 1.0e-6;
+
     pub const PERSPECTIVE_NEAR_PLANE: f32 = 0.01;
+
+    fn sanitized_vertical_world_size(value: f32) -> f32 {
+        if value.is_finite() {
+            value.max(Self::MIN_VERTICAL_WORLD_SIZE)
+        } else {
+            Self::DEFAULT_VERTICAL_WORLD_SIZE
+        }
+    }
+
+    fn effective_vertical_world_size(&self) -> f32 {
+        Self::sanitized_vertical_world_size(
+            self.vertical_world_size
+                .unwrap_or(Self::DEFAULT_VERTICAL_WORLD_SIZE),
+        )
+    }
 
     pub fn from_camera(camera: &PinholeWrapper) -> Option<Self> {
         let fov_y = camera.pinhole.fov_y();
@@ -41,6 +64,7 @@ impl Eye {
         Some(Self {
             world_from_rub_view: camera.world_from_rub_view()?,
             fov_y: Some(fov_y),
+            vertical_world_size: None,
         })
     }
 
@@ -48,7 +72,7 @@ impl Eye {
         if self.is_perspective() {
             Self::PERSPECTIVE_NEAR_PLANE // TODO(emilk)
         } else {
-            -1000.0 // TODO(andreas)
+            0.0
         }
     }
 
@@ -56,7 +80,7 @@ impl Eye {
         if self.is_perspective() {
             f32::INFINITY
         } else {
-            1000.0
+            10000.0
         }
     }
 
@@ -66,11 +90,14 @@ impl Eye {
         let projection = if let Some(fov_y) = self.fov_y {
             Mat4::perspective_infinite_rh(fov_y, aspect_ratio, self.near())
         } else {
+            let vertical_world_size = self.effective_vertical_world_size();
+            let horizontal_world_size = vertical_world_size * aspect_ratio;
+
             Mat4::orthographic_rh(
-                space2d_rect.left(),
-                space2d_rect.right(),
-                space2d_rect.bottom(),
-                space2d_rect.top(),
+                -0.5 * horizontal_world_size,
+                0.5 * horizontal_world_size,
+                -0.5 * vertical_world_size,
+                0.5 * vertical_world_size,
                 self.near(),
                 self.far(),
             )
@@ -105,11 +132,16 @@ impl Eye {
             macaw::Ray3::from_origin_dir(self.pos_in_world(), ray_dir.normalize_or_zero())
         } else {
             // The ray originates on the camera plane, not from the camera position
-            let ray_dir = self.world_from_rub_view.rotation().mul_vec3(glam::Vec3::Z);
+            let ray_dir = self.world_from_rub_view.rotation().mul_vec3(-glam::Vec3::Z);
+            let (w, h) = (screen_rect.width(), screen_rect.height());
+            let aspect_ratio = w / h;
+            let vertical_world_size = self.effective_vertical_world_size();
+            let horizontal_world_size = vertical_world_size * aspect_ratio;
+            let x = (pointer.x - screen_rect.center().x) / w * horizontal_world_size;
+            let y = (screen_rect.center().y - pointer.y) / h * vertical_world_size;
             let origin = self.world_from_rub_view.translation()
-                + self.world_from_rub_view.rotation().mul_vec3(glam::Vec3::X) * pointer.x
-                + self.world_from_rub_view.rotation().mul_vec3(glam::Vec3::Y) * pointer.y
-                + ray_dir * self.near();
+                + self.world_from_rub_view.rotation().mul_vec3(glam::Vec3::X) * x
+                + self.world_from_rub_view.rotation().mul_vec3(glam::Vec3::Y) * y;
 
             macaw::Ray3::from_origin_dir(origin, ray_dir)
         }
@@ -133,24 +165,98 @@ impl Eye {
             .rotation()
             .slerp(other.world_from_rub_view.rotation(), t);
 
-        let fov_y = if t < 0.02 {
-            self.fov_y
+        let (fov_y, vertical_world_size) = if t < 0.02 {
+            (self.fov_y, self.vertical_world_size)
         } else if t > 0.98 {
-            other.fov_y
+            (other.fov_y, other.vertical_world_size)
         } else if self.fov_y.is_none() && other.fov_y.is_none() {
-            None
+            (
+                None,
+                Some(egui::lerp(
+                    self.effective_vertical_world_size()..=other.effective_vertical_world_size(),
+                    t,
+                )),
+            )
         } else {
             // TODO(andreas): Interpolating between perspective and ortho is untested and likely more involved than this.
-            Some(egui::lerp(
-                self.fov_y.unwrap_or(0.01)..=other.fov_y.unwrap_or(0.01),
-                t,
-            ))
+            (
+                Some(egui::lerp(
+                    self.fov_y.unwrap_or(0.01)..=other.fov_y.unwrap_or(0.01),
+                    t,
+                )),
+                Some(egui::lerp(
+                    self.vertical_world_size
+                        .unwrap_or(Self::DEFAULT_VERTICAL_WORLD_SIZE)
+                        ..=other
+                            .vertical_world_size
+                            .unwrap_or(Self::DEFAULT_VERTICAL_WORLD_SIZE),
+                    t,
+                )),
+            )
         };
 
         Self {
             world_from_rub_view: IsoTransform::from_rotation_translation(rotation, translation),
             fov_y,
+            vertical_world_size,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn orthographic_picking_ray_uses_world_projection_size() {
+        let eye = Eye {
+            world_from_rub_view: IsoTransform::IDENTITY,
+            fov_y: None,
+            vertical_world_size: Some(10.0),
+        };
+        let screen = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(200.0, 100.0));
+
+        let center = eye.picking_ray(screen, glam::vec2(100.0, 50.0));
+        assert_eq!(center.origin, glam::Vec3::ZERO);
+        assert_eq!(center.dir, -glam::Vec3::Z);
+
+        let top_left = eye.picking_ray(screen, glam::Vec2::ZERO);
+        assert_eq!(top_left.origin, glam::vec3(-10.0, 5.0, 0.0));
+        assert_eq!(top_left.dir, -glam::Vec3::Z);
+    }
+
+    #[test]
+    fn orthographic_interpolation_preserves_projection_scale() {
+        let first = Eye {
+            world_from_rub_view: IsoTransform::IDENTITY,
+            fov_y: None,
+            vertical_world_size: Some(10.0),
+        };
+        let second = Eye {
+            vertical_world_size: Some(20.0),
+            ..first
+        };
+
+        assert_eq!(first.lerp(&second, 0.5).vertical_world_size, Some(15.0));
+    }
+
+    #[test]
+    fn orthographic_projection_size_is_positive_and_finite() {
+        let mut eye = Eye {
+            world_from_rub_view: IsoTransform::IDENTITY,
+            fov_y: None,
+            vertical_world_size: Some(-1.0),
+        };
+        assert_eq!(
+            eye.effective_vertical_world_size(),
+            Eye::MIN_VERTICAL_WORLD_SIZE
+        );
+
+        eye.vertical_world_size = Some(f32::NAN);
+        assert_eq!(
+            eye.effective_vertical_world_size(),
+            Eye::DEFAULT_VERTICAL_WORLD_SIZE
+        );
     }
 }
 
@@ -189,6 +295,9 @@ impl EyeInterpolation {
 pub struct EyeState {
     /// Vertical field of view in radians.
     fov_y: Option<f32>,
+
+    /// Vertical size of the orthographic projection plane in world units.
+    vertical_world_size: Option<f32>,
 
     velocity: Vec3,
 
@@ -236,9 +345,11 @@ pub(crate) struct EyeController {
     pos: Vec3,
     look_target: Vec3,
     kind: Eye3DKind,
+    projection: Eye3DProjection,
     speed: f64,
     eye_up: Vec3,
     fov_y: Option<f32>,
+    vertical_world_size: Option<f32>,
 
     did_interact: bool,
 }
@@ -280,7 +391,17 @@ impl EyeController {
             )
             .unwrap_or_else(|| IsoTransform::from_translation(self.pos))
             .inverse(),
-            fov_y: Some(self.fov_y.unwrap_or(Eye::DEFAULT_FOV_Y)),
+            fov_y: match self.projection {
+                Eye3DProjection::Perspective => Some(self.fov_y.unwrap_or(Eye::DEFAULT_FOV_Y)),
+                Eye3DProjection::Orthographic => None,
+            },
+            vertical_world_size: match self.projection {
+                Eye3DProjection::Orthographic => Some(Eye::sanitized_vertical_world_size(
+                    self.vertical_world_size
+                        .unwrap_or(Eye::DEFAULT_VERTICAL_WORLD_SIZE),
+                )),
+                Eye3DProjection::Perspective => None,
+            },
         }
     }
 
@@ -291,6 +412,18 @@ impl EyeController {
     ) -> Result<Self, ViewPropertyQueryError> {
         let kind = eye_property
             .component_or_fallback::<Eye3DKind>(ctx, EyeControls3D::descriptor_kind().component)?;
+
+        let projection = eye_property.component_or_fallback::<Eye3DProjection>(
+            ctx,
+            EyeControls3D::descriptor_projection().component,
+        )?;
+
+        let vertical_world_size = Some(Eye::sanitized_vertical_world_size(
+            **eye_property.component_or_fallback::<Length>(
+                ctx,
+                EyeControls3D::descriptor_vertical_world_size().component,
+            )?,
+        ));
 
         let speed = **eye_property.component_or_fallback::<LinearSpeed>(
             ctx,
@@ -321,10 +454,12 @@ impl EyeController {
             pos,
             look_target,
             kind,
+            projection,
             speed,
             eye_up,
             did_interact: false,
             fov_y,
+            vertical_world_size,
         })
     }
 
@@ -333,6 +468,9 @@ impl EyeController {
         self.look_target = eye.pos_in_world() + eye.forward_in_world();
         self.eye_up = eye.world_from_rub_view.transform_vector3(Vec3::Y);
         self.fov_y = eye.fov_y;
+        self.vertical_world_size = eye
+            .vertical_world_size
+            .map(Eye::sanitized_vertical_world_size);
     }
 
     /// Saves the subset of eye controls that can change through user input to the blueprint.
@@ -344,6 +482,7 @@ impl EyeController {
         old_pos: Vec3,
         old_look_target: Vec3,
         old_eye_up: Vec3,
+        old_vertical_world_size: Option<f32>,
     ) {
         if !self.did_interact {
             return;
@@ -368,6 +507,17 @@ impl EyeController {
                 ctx,
                 &EyeControls3D::descriptor_eye_up(),
                 &Vector3D::from(self.eye_up),
+            );
+        }
+
+        if self.vertical_world_size != old_vertical_world_size {
+            eye_property.save_blueprint_component(
+                ctx,
+                &EyeControls3D::descriptor_vertical_world_size(),
+                &Length::from(
+                    self.vertical_world_size
+                        .unwrap_or(Eye::DEFAULT_VERTICAL_WORLD_SIZE),
+                ),
             );
         }
     }
@@ -526,6 +676,16 @@ impl EyeController {
             return;
         }
 
+        if self.projection == Eye3DProjection::Orthographic {
+            self.vertical_world_size = Some(Eye::sanitized_vertical_world_size(
+                self.vertical_world_size
+                    .unwrap_or(Eye::DEFAULT_VERTICAL_WORLD_SIZE)
+                    / zoom_factor,
+            ));
+            self.did_interact = true;
+            return;
+        }
+
         match self.kind {
             Eye3DKind::Orbital => {
                 let radius = self.pos.distance(self.look_target);
@@ -565,8 +725,18 @@ impl EyeController {
 
             // X=right, Y=up, Z=back
             let mut local_movement = Vec3::ZERO;
-            local_movement.z -= input.key_down(egui::Key::W) as i32 as f32;
-            local_movement.z += input.key_down(egui::Key::S) as i32 as f32;
+            if self.projection == Eye3DProjection::Orthographic
+                && let Some(vertical_world_size) = &mut self.vertical_world_size
+            {
+                let direction = input.key_down(egui::Key::S) as i32 as f32
+                    - input.key_down(egui::Key::W) as i32 as f32;
+                *vertical_world_size += direction * self.speed as f32 * dt;
+                *vertical_world_size = Eye::sanitized_vertical_world_size(*vertical_world_size);
+                self.did_interact |= direction != 0.0;
+            } else {
+                local_movement.z -= input.key_down(egui::Key::W) as i32 as f32;
+                local_movement.z += input.key_down(egui::Key::S) as i32 as f32;
+            }
             local_movement.x -= input.key_down(egui::Key::A) as i32 as f32;
             local_movement.x += input.key_down(egui::Key::D) as i32 as f32;
             local_movement.y -= input.key_down(egui::Key::Q) as i32 as f32;
@@ -705,6 +875,37 @@ impl EyeController {
 
         gamepad_navigation_status
     }
+
+    fn handle_projection_change(&mut self, eye_state: &EyeState) {
+        if !eye_state.last_eye.is_some_and(|last_eye| {
+            matches!(
+                (last_eye.is_perspective(), self.projection),
+                (true, Eye3DProjection::Orthographic) | (false, Eye3DProjection::Perspective)
+            )
+        }) {
+            return;
+        }
+
+        match self.projection {
+            Eye3DProjection::Orthographic => {
+                self.vertical_world_size = Some(Eye::sanitized_vertical_world_size(
+                    self.radius()
+                        * f32::tan(eye_state.fov_y.unwrap_or(Eye::DEFAULT_FOV_Y) * 0.5)
+                        * 2.0,
+                ));
+            }
+            Eye3DProjection::Perspective => {
+                let radius = (Eye::sanitized_vertical_world_size(
+                    self.vertical_world_size
+                        .unwrap_or(Eye::DEFAULT_VERTICAL_WORLD_SIZE),
+                ) * 0.5)
+                    / f32::tan(eye_state.fov_y.unwrap_or(Eye::DEFAULT_FOV_Y) * 0.5);
+                self.pos = self.look_target - self.fwd() * radius;
+            }
+        }
+
+        self.did_interact = true;
+    }
 }
 
 /// Cap on the orbital zoom-out radius, derived from the scene bounding box diagonal.
@@ -780,6 +981,7 @@ impl EyeState {
             pos: old_pos,
             look_target: old_look_target,
             eye_up: old_eye_up,
+            vertical_world_size: old_vertical_world_size,
             ..
         } = eye_controller;
 
@@ -788,6 +990,8 @@ impl EyeState {
             eye_controller.look_target = gamepad_interaction.look_target;
             eye_controller.eye_up = gamepad_interaction.eye_up;
         }
+
+        eye_controller.handle_projection_change(self);
 
         let mut drag_threshold = 0.0;
 
@@ -848,6 +1052,7 @@ impl EyeState {
                 old_pos,
                 old_look_target,
                 old_eye_up,
+                old_vertical_world_size,
             );
         }
 
@@ -860,6 +1065,7 @@ impl EyeState {
             old_pos,
             old_look_target,
             old_eye_up,
+            old_vertical_world_size,
             tracking_entity.as_ref(),
         ) {
             return Ok(tracked_eye);
@@ -885,6 +1091,7 @@ impl EyeState {
         old_pos: Vec3,
         old_look_target: Vec3,
         old_eye_up: Vec3,
+        old_vertical_world_size: Option<f32>,
         tracking_entity: Option<&re_sdk_types::components::EntityPath>,
     ) -> Option<Eye> {
         if let Some(tracking_entity) = &tracking_entity {
@@ -915,6 +1122,7 @@ impl EyeState {
                         old_pos,
                         old_look_target,
                         old_eye_up,
+                        old_vertical_world_size,
                     );
                     eye_property.clear_blueprint_component(
                         ctx.viewer_ctx,
@@ -1002,6 +1210,7 @@ impl EyeState {
                         old_pos,
                         old_look_target,
                         old_eye_up,
+                        old_vertical_world_size,
                     );
 
                     eye_property.clear_blueprint_component(
@@ -1081,6 +1290,7 @@ impl EyeState {
             pos: old_pos,
             look_target: old_look_target,
             eye_up: old_eye_up,
+            vertical_world_size: old_vertical_world_size,
             ..
         } = eye_controller;
         // Focusing cameras is not something that happens now, since those are always tracked.
@@ -1115,6 +1325,7 @@ impl EyeState {
             old_pos,
             old_look_target,
             old_eye_up,
+            old_vertical_world_size,
         );
 
         eye_property
@@ -1138,6 +1349,7 @@ impl EyeState {
             pos: old_pos,
             look_target: old_look_target,
             eye_up: old_eye_up,
+            vertical_world_size: old_vertical_world_size,
             ..
         } = eye_controller;
 
@@ -1175,6 +1387,7 @@ impl EyeState {
             old_pos,
             old_look_target,
             old_eye_up,
+            old_vertical_world_size,
         );
         eye_property
             .clear_blueprint_component(ctx.viewer_ctx, EyeControls3D::descriptor_tracking_entity());
@@ -1244,6 +1457,8 @@ impl EyeState {
             target_eye
         };
 
+        self.fov_y = eye.fov_y.or(self.fov_y);
+        self.vertical_world_size = eye.vertical_world_size.or(self.vertical_world_size);
         self.last_eye = Some(eye);
 
         Ok(eye)

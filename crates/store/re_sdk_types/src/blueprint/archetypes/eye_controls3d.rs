@@ -35,8 +35,18 @@ pub struct EyeControls3D {
     /// Defaults to orbital.
     pub kind: Option<SerializedComponentBatch>,
 
+    /// The projection type of the eye for the spatial 3D view (perspective or orthographic).
+    ///
+    /// Defaults to perspective.
+    pub projection: Option<SerializedComponentBatch>,
+
     /// The cameras current position.
     pub position: Option<SerializedComponentBatch>,
+
+    /// The vertical size of the orthographic projection plane in world units, i.e. the zoom level.
+    ///
+    /// Not used when the projection is perspective.
+    pub vertical_world_size: Option<SerializedComponentBatch>,
 
     /// The position the camera is currently looking at.
     ///
@@ -84,6 +94,20 @@ impl EyeControls3D {
         (*DESCRIPTOR).clone()
     }
 
+    /// Returns the [`ComponentDescriptor`] for [`Self::projection`].
+    ///
+    /// The corresponding component is [`crate::blueprint::components::Eye3DProjection`].
+    #[inline]
+    pub fn descriptor_projection() -> ComponentDescriptor {
+        static DESCRIPTOR: std::sync::LazyLock<ComponentDescriptor> =
+            std::sync::LazyLock::new(|| ComponentDescriptor {
+                archetype: Some("rerun.blueprint.archetypes.EyeControls3D".into()),
+                component: "EyeControls3D:projection".into(),
+                component_type: Some("rerun.blueprint.components.Eye3DProjection".into()),
+            });
+        (*DESCRIPTOR).clone()
+    }
+
     /// Returns the [`ComponentDescriptor`] for [`Self::position`].
     ///
     /// The corresponding component is [`crate::components::Position3D`].
@@ -94,6 +118,20 @@ impl EyeControls3D {
                 archetype: Some("rerun.blueprint.archetypes.EyeControls3D".into()),
                 component: "EyeControls3D:position".into(),
                 component_type: Some("rerun.components.Position3D".into()),
+            });
+        (*DESCRIPTOR).clone()
+    }
+
+    /// Returns the [`ComponentDescriptor`] for [`Self::vertical_world_size`].
+    ///
+    /// The corresponding component is [`crate::components::Length`].
+    #[inline]
+    pub fn descriptor_vertical_world_size() -> ComponentDescriptor {
+        static DESCRIPTOR: std::sync::LazyLock<ComponentDescriptor> =
+            std::sync::LazyLock::new(|| ComponentDescriptor {
+                archetype: Some("rerun.blueprint.archetypes.EyeControls3D".into()),
+                component: "EyeControls3D:vertical_world_size".into(),
+                component_type: Some("rerun.components.Length".into()),
             });
         (*DESCRIPTOR).clone()
     }
@@ -175,11 +213,13 @@ static REQUIRED_COMPONENTS: std::sync::LazyLock<[ComponentDescriptor; 0usize]> =
 static RECOMMENDED_COMPONENTS: std::sync::LazyLock<[ComponentDescriptor; 0usize]> =
     std::sync::LazyLock::new(|| []);
 
-static OPTIONAL_COMPONENTS: std::sync::LazyLock<[ComponentDescriptor; 7usize]> =
+static OPTIONAL_COMPONENTS: std::sync::LazyLock<[ComponentDescriptor; 9usize]> =
     std::sync::LazyLock::new(|| {
         [
             EyeControls3D::descriptor_kind(),
+            EyeControls3D::descriptor_projection(),
             EyeControls3D::descriptor_position(),
+            EyeControls3D::descriptor_vertical_world_size(),
             EyeControls3D::descriptor_look_target(),
             EyeControls3D::descriptor_eye_up(),
             EyeControls3D::descriptor_speed(),
@@ -188,11 +228,13 @@ static OPTIONAL_COMPONENTS: std::sync::LazyLock<[ComponentDescriptor; 7usize]> =
         ]
     });
 
-static ALL_COMPONENTS: std::sync::LazyLock<[ComponentDescriptor; 7usize]> =
+static ALL_COMPONENTS: std::sync::LazyLock<[ComponentDescriptor; 9usize]> =
     std::sync::LazyLock::new(|| {
         [
             EyeControls3D::descriptor_kind(),
+            EyeControls3D::descriptor_projection(),
             EyeControls3D::descriptor_position(),
+            EyeControls3D::descriptor_vertical_world_size(),
             EyeControls3D::descriptor_look_target(),
             EyeControls3D::descriptor_eye_up(),
             EyeControls3D::descriptor_speed(),
@@ -202,8 +244,8 @@ static ALL_COMPONENTS: std::sync::LazyLock<[ComponentDescriptor; 7usize]> =
     });
 
 impl EyeControls3D {
-    /// The total number of components in the archetype: 0 required, 0 recommended, 7 optional
-    pub const NUM_COMPONENTS: usize = 7usize;
+    /// The total number of components in the archetype: 0 required, 0 recommended, 9 optional
+    pub const NUM_COMPONENTS: usize = 9usize;
 }
 
 impl ::re_types_core::Archetype for EyeControls3D {
@@ -250,9 +292,19 @@ impl ::re_types_core::Archetype for EyeControls3D {
         let kind = arrays_by_descr
             .get(&Self::descriptor_kind())
             .map(|array| SerializedComponentBatch::new(array.clone(), Self::descriptor_kind()));
+        let projection = arrays_by_descr
+            .get(&Self::descriptor_projection())
+            .map(|array| {
+                SerializedComponentBatch::new(array.clone(), Self::descriptor_projection())
+            });
         let position = arrays_by_descr
             .get(&Self::descriptor_position())
             .map(|array| SerializedComponentBatch::new(array.clone(), Self::descriptor_position()));
+        let vertical_world_size = arrays_by_descr
+            .get(&Self::descriptor_vertical_world_size())
+            .map(|array| {
+                SerializedComponentBatch::new(array.clone(), Self::descriptor_vertical_world_size())
+            });
         let look_target = arrays_by_descr
             .get(&Self::descriptor_look_target())
             .map(|array| {
@@ -276,7 +328,9 @@ impl ::re_types_core::Archetype for EyeControls3D {
             });
         Ok(Self {
             kind,
+            projection,
             position,
+            vertical_world_size,
             look_target,
             eye_up,
             speed,
@@ -292,7 +346,9 @@ impl ::re_types_core::AsComponents for EyeControls3D {
         use ::re_types_core::Archetype as _;
         [
             self.kind.clone(),
+            self.projection.clone(),
             self.position.clone(),
+            self.vertical_world_size.clone(),
             self.look_target.clone(),
             self.eye_up.clone(),
             self.speed.clone(),
@@ -313,7 +369,9 @@ impl EyeControls3D {
     pub fn new() -> Self {
         Self {
             kind: None,
+            projection: None,
             position: None,
+            vertical_world_size: None,
             look_target: None,
             eye_up: None,
             speed: None,
@@ -337,9 +395,17 @@ impl EyeControls3D {
                 crate::blueprint::components::Eye3DKind::arrow_empty(),
                 Self::descriptor_kind(),
             )),
+            projection: Some(SerializedComponentBatch::new(
+                crate::blueprint::components::Eye3DProjection::arrow_empty(),
+                Self::descriptor_projection(),
+            )),
             position: Some(SerializedComponentBatch::new(
                 crate::components::Position3D::arrow_empty(),
                 Self::descriptor_position(),
+            )),
+            vertical_world_size: Some(SerializedComponentBatch::new(
+                crate::components::Length::arrow_empty(),
+                Self::descriptor_vertical_world_size(),
             )),
             look_target: Some(SerializedComponentBatch::new(
                 crate::components::Position3D::arrow_empty(),
@@ -374,10 +440,37 @@ impl EyeControls3D {
         self
     }
 
+    /// The projection type of the eye for the spatial 3D view (perspective or orthographic).
+    ///
+    /// Defaults to perspective.
+    #[inline]
+    pub fn with_projection(
+        mut self,
+        projection: impl Into<crate::blueprint::components::Eye3DProjection>,
+    ) -> Self {
+        self.projection = try_serialize_field(Self::descriptor_projection(), [projection]);
+        self
+    }
+
     /// The cameras current position.
     #[inline]
     pub fn with_position(mut self, position: impl Into<crate::components::Position3D>) -> Self {
         self.position = try_serialize_field(Self::descriptor_position(), [position]);
+        self
+    }
+
+    /// The vertical size of the orthographic projection plane in world units, i.e. the zoom level.
+    ///
+    /// Not used when the projection is perspective.
+    #[inline]
+    pub fn with_vertical_world_size(
+        mut self,
+        vertical_world_size: impl Into<crate::components::Length>,
+    ) -> Self {
+        self.vertical_world_size = try_serialize_field(
+            Self::descriptor_vertical_world_size(),
+            [vertical_world_size],
+        );
         self
     }
 

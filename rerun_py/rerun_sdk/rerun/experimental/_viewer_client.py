@@ -239,6 +239,25 @@ class ViewerClient:
         view_id_str = str(view_id) if view_id is not None else None
         self._internal.save_screenshot(file_path, view_id_str)
 
+    def set_time_cursor(self, time: int, *, timeline: str | None = None, play: bool = False) -> None:
+        """
+        Move the active recording's time cursor.
+
+        The call completes after the viewer has accepted the cursor update, so a subsequent
+        [`save_screenshot`][rerun.experimental.ViewerClient.save_screenshot] observes it.
+
+        Parameters
+        ----------
+        time:
+            A sequence index for sequence timelines, or nanoseconds for temporal timelines.
+        timeline:
+            Timeline to seek on. If omitted, the viewer's active timeline is used.
+        play:
+            Whether to start playback from the new cursor. Defaults to paused.
+
+        """
+        self._internal.set_time_cursor(time, timeline=timeline, play=play)
+
     def close(self) -> None:
         """
         Close the client, terminating the spawned viewer.

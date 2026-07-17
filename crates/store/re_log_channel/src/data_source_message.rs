@@ -153,6 +153,18 @@ pub enum SaveScreenshotError {
     #[error("Failed to parse view id {view_id:?}, expected a UUID")]
     InvalidViewId { view_id: String },
 
+    /// The requested view has not been laid out by the viewer.
+    #[error("View {view_id} is not ready for a screenshot")]
+    ViewNotReady { view_id: String },
+
+    /// The requested view has no positive drawable area.
+    #[error("View {view_id} is too small for a screenshot")]
+    ViewTooSmall { view_id: String },
+
+    /// The headless renderer could not produce the requested framebuffer.
+    #[error("Failed to render screenshot: {reason}")]
+    RenderFailed { reason: String },
+
     /// The captured pixel data could not be turned into an image.
     #[error("Failed to create image from screenshot data")]
     InvalidImageData,
